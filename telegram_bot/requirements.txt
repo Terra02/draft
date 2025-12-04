@@ -1,0 +1,20 @@
+# Telegram Bot
+aiogram==3.4.1
+python-telegram-bot==20.7
+
+# API клиент
+httpx==0.25.2
+
+# Конфигурация
+python-dotenv==1.0.0
+pydantic==2.5.0
+pydantic-settings==2.1.0
+
+# Redis для хранения состояний
+redis==5.0.1
+
+# Планировщик
+apscheduler==3.10.4
+
+# Дополнительные утилиты
+loguru==0.7.2
