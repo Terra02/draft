@@ -1,7 +1,7 @@
 import asyncio
 import logging
 from aiogram import Bot, Dispatcher, types
-from aiogram.fsm.storage.redis import RedisStorage
+from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.client.default import DefaultBotProperties
 
 from app.config import settings
@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 async def main():
     # Инициализация бота и диспетчера
     bot = Bot(token=settings.TELEGRAM_BOT_TOKEN, default=DefaultBotProperties(parse_mode='HTML'))
-    storage = RedisStorage.from_url(settings.REDIS_URL)
+    storage = MemoryStorage()
     dp = Dispatcher(storage=storage)
 
     # Регистрация роутеров
