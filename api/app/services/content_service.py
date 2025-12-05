@@ -5,14 +5,13 @@ import logging
 
 from app.models.content import Content
 from app.schemas.content import ContentCreate, ContentUpdate
-from app.services.imdb_service import IMDbService
+from app.services.worker_adapter import worker_adapter  # Используем Worker вместо IMDbService
 
 logger = logging.getLogger(__name__)
 
 class ContentService:
     def __init__(self, db: AsyncSession):
         self.db = db
-        self.imdb_service = IMDbService()
 
     async def get_content_by_id(self, content_id: int) -> Optional[Content]:
         """Получить контент по ID"""
@@ -43,123 +42,126 @@ class ContentService:
         logger.info(f"Created new content: {content.title}")
         return content
 
-    async def search_content(
-        self, 
-        query: str, 
-        content_type: Optional[str] = None,
-        category_id: Optional[int] = None,
-        skip: int = 0, 
-        limit: int = 20
-    ) -> Dict[str, Any]:
-        """Поиск контента с проверкой в БД и внешнем API"""
-        # Сначала ищем в базе данных
-        db_results = await self._search_in_database(query, content_type, category_id, skip, limit)
-        
-        if db_results["total"] > 0:
-            logger.info(f"Found {db_results['total']} results in database for query: {query}")
-            return db_results
-        
-        # Если в базе нет результатов, ищем во внешнем API
-        logger.info(f"No results in database for query: {query}, searching external API")
-        external_results = await self._search_in_external_api(query, content_type)
-        
-        if external_results:
-            # Сохраняем найденные результаты в базу
-            saved_results = await self._save_external_results(external_results)
-            return await self._search_in_database(query, content_type, category_id, skip, limit)
-        
-        return {"results": [], "total": 0, "page": skip // limit + 1, "size": limit}
-
-    async def _search_in_database(
+    async def search_omdb_direct(
         self,
-        query: str,
-        content_type: Optional[str] = None,
-        category_id: Optional[int] = None,
-        skip: int = 0,
-        limit: int = 20
+        title: str,
+        content_type: str = None
     ) -> Dict[str, Any]:
-        """Поиск контента в базе данных"""
-        stmt = select(Content).where(
-            or_(
-                Content.title.ilike(f"%{query}%"),
-                Content.original_title.ilike(f"%{query}%"),
-                Content.description.ilike(f"%{query}%")
-            )
-        )
+        """Упрощенная версия поиска для бота"""
+        try:
+            # 1. Простой поиск в базе
+            stmt = select(Content).where(Content.title.ilike(f"%{title}%"))
+            
+            if content_type:
+                stmt = stmt.where(Content.content_type == content_type)
+            
+            result = await self.db.execute(stmt)
+            content = result.scalar_one_or_none()
+            
+            if content:
+                return {
+                    "source": "database",
+                    "data": self._content_to_dict(content),
+                    "message": "Уже есть в базе"
+                }
+            
+            # 2. Ищем через Worker
+            worker_result = await worker_adapter.search_omdb(title, content_type)
+            
+            if worker_result:
+                return {
+                    "source": "omdb",
+                    "data": worker_result,
+                    "message": "Найдено в OMDB через Worker"
+                }
+            
+            return {
+                "source": "not_found",
+                "data": None,
+                "message": f"'{title}' не найден в OMDB"
+            }
+            
+        except Exception as e:
+            logger.error(f"Error in search_omdb_direct: {e}")
+            return {
+                "source": "error",
+                "data": None,
+                "message": f"Ошибка поиска: {str(e)}"
+            }
 
-        if content_type:
-            stmt = stmt.where(Content.content_type == content_type)
+    async def add_from_omdb(
+        self,
+        title: str,
+        content_type: str = "movie"
+    ) -> Dict[str, Any]:
+        """Добавить фильм из OMDB через Worker"""
+        try:
+            # Ищем через Worker
+            worker_result = await worker_adapter.search_omdb(title, content_type)
+            
+            if not worker_result:
+                return {
+                    "success": False,
+                    "error": f"'{title}' не найден в OMDB",
+                    "content": None
+                }
+            
+            # Проверяем, существует ли уже контент с таким IMDb ID
+            if worker_result.get('imdb_id'):
+                existing_content = await self.get_content_by_imdb_id(worker_result['imdb_id'])
+                if existing_content:
+                    return {
+                        "success": True,
+                        "message": "Уже существует в базе",
+                        "content": self._content_to_dict(existing_content)
+                    }
+            
+            # Создаем объект контента
+            content_data = ContentCreate(**worker_result)
+            content = await self.create_content(content_data)
+            
+            return {
+                "success": True,
+                "message": "Успешно добавлен из OMDB",
+                "content": self._content_to_dict(content)
+            }
+            
+        except Exception as e:
+            logger.error(f"Error adding from OMDB: {e}")
+            return {
+                "success": False,
+                "error": str(e),
+                "content": None
+            }
 
-        if category_id:
-            stmt = stmt.where(Content.category_id == category_id)
-
-        # Получаем общее количество
-        total_stmt = select(func.count()).select_from(stmt.subquery())
-        total_result = await self.db.execute(total_stmt)
-        total = total_result.scalar()
-
-        # Получаем результаты
-        stmt = stmt.offset(skip).limit(limit)
-        result = await self.db.execute(stmt)
-        content_list = result.scalars().all()
-
+    def _content_to_dict(self, content: Content) -> Dict[str, Any]:
+        """Конвертировать Content в словарь"""
+        if not content:
+            return {}
+            
         return {
-            "results": content_list,
-            "total": total,
-            "page": skip // limit + 1,
-            "size": limit
+            "id": content.id,
+            "title": content.title,
+            "original_title": content.original_title,
+            "description": content.description,
+            "content_type": content.content_type,
+            "release_year": content.release_year,
+            "duration_minutes": content.duration_minutes,
+            "imdb_rating": content.imdb_rating,
+            "imdb_id": content.imdb_id,
+            "poster_url": content.poster_url,
+            "genre": content.genre,
+            "director": content.director,
+            "cast": content.cast,
+            "total_seasons": content.total_seasons,
         }
 
-    async def _search_in_external_api(
-        self, 
-        query: str, 
-        content_type: Optional[str] = None
-    ) -> List[Dict[str, Any]]:
-        """Поиск контента во внешнем API (OMDb)"""
-        try:
-            external_results = []
-            
-            # Ищем фильмы
-            if not content_type or content_type == 'movie':
-                movie_data = await self.imdb_service.search_content(query, 'movie')
-                if movie_data:
-                    external_results.append(movie_data)
-            
-            # Ищем сериалы
-            if not content_type or content_type == 'series':
-                series_data = await self.imdb_service.search_content(query, 'series')
-                if series_data:
-                    external_results.append(series_data)
-            
-            return external_results
-        except Exception as e:
-            logger.error(f"Error searching external API: {e}")
-            return []
-
-    async def _save_external_results(self, external_results: List[Dict[str, Any]]) -> List[Content]:
-        """Сохранить результаты из внешнего API в базу данных"""
-        saved_contents = []
-        
-        for external_data in external_results:
-            try:
-                # Проверяем, существует ли уже контент с таким IMDb ID
-                if external_data.get('imdb_id'):
-                    existing_content = await self.get_content_by_imdb_id(external_data['imdb_id'])
-                    if existing_content:
-                        saved_contents.append(existing_content)
-                        continue
-
-                # Создаем объект контента
-                content_data = ContentCreate(**external_data)
-                content = await self.create_content(content_data)
-                saved_contents.append(content)
-                logger.info(f"Saved external content to database: {content.title}")
-                
-            except Exception as e:
-                logger.error(f"Error saving external content {external_data.get('title')}: {e}")
-                continue
-        
-        return saved_contents
+    # УДАЛЕННЫЕ МЕТОДЫ (лишнее):
+    # - _search_in_database (не используется ботом)
+    # - search_content (не используется ботом)
+    # - _search_in_external_api (заменен на worker_adapter)
+    # - _save_external_results (интегрировано в add_from_omdb)
+    # - imdb_service в __init__ (заменен на worker_adapter)
 
     async def update_content(self, content_id: int, content_data: ContentUpdate) -> Optional[Content]:
         """Обновить данные контента"""

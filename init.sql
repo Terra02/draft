@@ -7,9 +7,10 @@
 -- ============================================
 -- Таблица пользователей (Telegram)
 -- ============================================
+--telegram_id был поменян на VARCHAR вместо INT
 CREATE TABLE IF NOT EXISTS users (
     id SERIAL PRIMARY KEY,
-    telegram_id INTEGER UNIQUE NOT NULL,
+    telegram_id VARCHAR(50) UNIQUE NOT NULL, 
     username VARCHAR(255) UNIQUE,
     first_name VARCHAR(255),
     last_name VARCHAR(255),
@@ -163,13 +164,13 @@ ON CONFLICT (name) DO NOTHING;
 
 -- Пользователь для тестов (Telegram тестовый ID)
 INSERT INTO users (telegram_id, username, first_name, last_name) 
-VALUES (5206838876, 'test_user', 'Иван', 'Тестов')
+VALUES ('5206838876', 'test_user', 'Иван', 'Тестов')
 ON CONFLICT (telegram_id) DO NOTHING;
 
 -- Фильмы для тестов
 INSERT INTO view_history (user_id, content_id, watched_at, rating, notes)
 VALUES (
-    (SELECT id FROM users WHERE telegram_id = 5206838876),  -- ID пользователя
+    (SELECT id FROM users WHERE telegram_id = '5206838876'),  -- ID пользователя
     (SELECT id FROM content WHERE title = 'Человек-паук'),        -- ID контента
     CURRENT_TIMESTAMP,                                      -- Время просмотра
     9.5,                                                    -- Оценка (1-10)
@@ -179,7 +180,7 @@ VALUES (
 -- Для сериала (с указанием сезона и эпизода)
 INSERT INTO view_history (user_id, content_id, watched_at, season, episode, episode_title, rating)
 VALUES (
-    (SELECT id FROM users WHERE telegram_id = 5206838876),
+    (SELECT id FROM users WHERE telegram_id = '5206838876'),
     (SELECT id FROM content WHERE title = 'Игра Престолов'),
     CURRENT_TIMESTAMP,
     1,                         -- Сезон

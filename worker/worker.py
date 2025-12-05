@@ -1,108 +1,134 @@
-import asyncio
-import logging
-from apscheduler.schedulers.asyncio import AsyncIOScheduler
-from apscheduler.triggers.cron import CronTrigger
-from datetime import datetime, timedelta
+# worker/app/main.py
+from fastapi import FastAPI, HTTPException
+import httpx
 import os
+import logging
+from typing import Optional, Dict, Any
+from pydantic import BaseModel
 
-from app.tasks.update_ratings import update_ratings_task
-from app.tasks.cleanup import cleanup_task
-from app.tasks.statistics import update_statistics_task
-from app.tasks.notifications import send_notifications_task
-from app.utils.logger import setup_logging
-from app.utils.config import get_settings
-
-# Настройка логирования
-setup_logging()
+app = FastAPI(title="OMDB Worker")
 logger = logging.getLogger(__name__)
 
-class Worker:
+class SearchRequest(BaseModel):
+    title: str
+    content_type: Optional[str] = None
+
+class SearchResponse(BaseModel):
+    success: bool
+    data: Optional[Dict[str, Any]] = None
+    error: Optional[str] = None
+
+class OMDBService:
     def __init__(self):
-        self.scheduler = AsyncIOScheduler()
-        self.settings = get_settings()
-        self.is_running = False
-
-    async def start(self):
-        """Запуск воркера"""
-        if self.is_running:
-            logger.warning("Worker is already running")
-            return
-
-        logger.info("🚀 Starting Movie Tracker Worker...")
-        self.is_running = True
-
-        try:
-            # Регистрация периодических задач
-            self.scheduler.add_job(
-                self._safe_execute(update_ratings_task),
-                CronTrigger(hour=3, minute=0),  # Каждый день в 3:00
-                id='update_ratings',
-                name='Обновление рейтингов контента'
-            )
-
-            self.scheduler.add_job(
-                self._safe_execute(cleanup_task),
-                CronTrigger(hour=4, minute=0),  # Каждый день в 4:00
-                id='cleanup',
-                name='Очистка старых данных'
-            )
-
-            self.scheduler.add_job(
-                self._safe_execute(update_statistics_task),
-                CronTrigger(hour=2, minute=0),  # Каждый день в 2:00
-                id='update_statistics',
-                name='Обновление статистики'
-            )
-
-            self.scheduler.add_job(
-                self._safe_execute(send_notifications_task),
-                CronTrigger(hour=9, minute=0),  # Каждый день в 9:00
-                id='send_notifications',
-                name='Отправка уведомлений'
-            )
-
-            # Запуск планировщика
-            self.scheduler.start()
-            logger.info("✅ Worker started successfully with scheduled tasks")
-
-            # Бесконечный цикл
-            while self.is_running:
-                await asyncio.sleep(1)
-
-        except Exception as e:
-            logger.error(f"❌ Worker error: {e}")
-            self.is_running = False
-            raise
-
-    def _safe_execute(self, task_func):
-        """Обертка для безопасного выполнения задач"""
-        async def wrapper():
-            try:
-                logger.info(f"Starting task: {task_func.__name__}")
-                await task_func()
-                logger.info(f"Completed task: {task_func.__name__}")
-            except Exception as e:
-                logger.error(f"Task {task_func.__name__} failed: {e}")
-        return wrapper
-
-    async def stop(self):
-        """Остановка воркера"""
-        logger.info("🛑 Stopping worker...")
-        self.is_running = False
-        self.scheduler.shutdown()
-        logger.info("✅ Worker stopped successfully")
-
-async def main():
-    worker = Worker()
+        self.api_key = os.getenv("OMDB_API_KEY")
+        self.base_url = "http://www.omdbapi.com/"
+        
+        if not self.api_key:
+            logger.error("❌ OMDB_API_KEY not configured in worker")
     
-    try:
-        await worker.start()
-    except KeyboardInterrupt:
-        logger.info("Received interrupt signal")
-    except Exception as e:
-        logger.error(f"Worker fatal error: {e}")
-    finally:
-        await worker.stop()
+    async def search(self, title: str, content_type: str = None) -> Optional[Dict[str, Any]]:
+        """Поиск в OMDB API"""
+        if not self.api_key:
+            logger.error("OMDB API key not configured")
+            return None
+        
+        try:
+            params = {
+                "apikey": self.api_key,
+                "t": title,
+                "plot": "short"
+            }
+            
+            if content_type:
+                params["type"] = content_type
+            
+            logger.info(f"🔍 Worker ищет в OMDB: {title}")
+            
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                response = await client.get(self.base_url, params=params)
+                
+                if response.status_code == 200:
+                    data = response.json()
+                    
+                    if data.get("Response") == "True":
+                        logger.info(f"✅ Worker нашел: {data.get('Title')}")
+                        return self._parse_response(data)
+                    else:
+                        logger.warning(f"❌ Не найден в OMDB: {data.get('Error')}")
+                        return None
+                else:
+                    logger.error(f"❌ OMDB API error: {response.status_code}")
+                    return None
+                    
+        except Exception as e:
+            logger.error(f"💥 Worker error: {e}")
+            return None
+    
+    def _parse_response(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        """Парсинг ответа OMDB"""
+        content_type = "movie"
+        if data.get("Type") == "series":
+            content_type = "series"
+        
+        # Парсим год
+        release_year = None
+        if data.get("Year") and data.get("Year") != "N/A":
+            try:
+                year_str = data["Year"].split("–")[0]
+                release_year = int(year_str)
+            except ValueError:
+                pass
+        
+        # Парсим рейтинг
+        imdb_rating = None
+        if data.get("imdbRating") and data.get("imdbRating") != "N/A":
+            try:
+                imdb_rating = float(data["imdbRating"])
+            except ValueError:
+                pass
+        
+        return {
+            "title": data.get("Title"),
+            "original_title": data.get("Title"),
+            "description": data.get("Plot"),
+            "content_type": content_type,
+            "release_year": release_year,
+            "imdb_rating": imdb_rating,
+            "imdb_id": data.get("imdbID"),
+            "poster_url": data.get("Poster") if data.get("Poster") != "N/A" else None,
+            "genre": data.get("Genre"),
+            "director": data.get("Director"),
+            "cast": data.get("Actors"),
+            "total_seasons": int(data["totalSeasons"]) if data.get("totalSeasons") and data.get("totalSeasons") != "N/A" else None
+        }
+
+# Инициализация сервиса
+omdb_service = OMDBService()
+
+@app.post("/search", response_model=SearchResponse)
+async def search_omdb(request: SearchRequest):
+    """Endpoint для поиска в OMDB"""
+    if not omdb_service.api_key:
+        return SearchResponse(
+            success=False,
+            error="OMDB API key not configured in worker"
+        )
+    
+    result = await omdb_service.search(request.title, request.content_type)
+    
+    if result:
+        return SearchResponse(success=True, data=result)
+    else:
+        return SearchResponse(
+            success=False,
+            error=f"Фильм '{request.title}' не найден в OMDB"
+        )
+
+@app.get("/health")
+async def health_check():
+    """Проверка здоровья worker"""
+    return {"status": "healthy", "service": "omdb-worker"}
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8001)

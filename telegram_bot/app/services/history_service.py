@@ -30,8 +30,8 @@ class HistoryService:
             "rating": rating,
             "notes": notes
         }
-        
-        return await self.api_client.post("/api/v1/history/", data=history_data)
+        ##поменял endpoint
+        return await self.api_client.post("/api/v1/view-history/", data=history_data)
 
     async def update_rating(self, record_id: int, rating: float) -> Optional[Dict[str, Any]]:
         """Обновить рейтинг записи"""

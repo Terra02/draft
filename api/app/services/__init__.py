@@ -4,7 +4,7 @@ from .view_history_service import ViewHistoryService
 from .watchlist_service import WatchlistService
 from .category_service import CategoryService
 from .analytics_service import AnalyticsService
-from .imdb_service import IMDbService
+
 
 __all__ = [
     "UserService",

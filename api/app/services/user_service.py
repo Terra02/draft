@@ -24,25 +24,41 @@ class UserService:
         result = await self.db.execute(stmt)
         return result.scalar_one_or_none()
 
+
+
+
     async def get_user_by_telegram_id(self, telegram_id: int) -> Optional[User]:
-        """Получить пользователя по Telegram ID"""
-        stmt = select(User).where(User.telegram_id == telegram_id)
+   
+        stmt = select(User).where(User.telegram_id == str(telegram_id))
         result = await self.db.execute(stmt)
-        return result.scalar_one_or_none()
+        user = result.scalar_one_or_none()
+        
+        if user:
+            logger.info(f"Найден пользователь: id={user.id}, telegram_id={user.telegram_id}")
+        else:
+            logger.info(f"Пользователь с telegram_id={telegram_id} не найден")
+        
+        return user
+
 
     async def create_user(self, user: UserCreate) -> User:
         """Создать нового пользователя"""
+        logger.info(f"Создаём пользователя: {user}")
+        telegram_id_str = str(user.telegram_id)
+
         db_user = User(
-            telegram_id=user.telegram_id,
+            telegram_id=telegram_id_str,
             username=user.username,
             first_name=user.first_name,
             last_name=user.last_name,
-            email=user.email
         )
         self.db.add(db_user)
+
         await self.db.commit()
         await self.db.refresh(db_user)
+        logger.info(f"Пользовтель создан:id ={db_user.id}")
         return db_user
+
 
     async def update_user(self, user_id: int, user_update: UserUpdate) -> Optional[User]:
         """Обновить пользователя"""

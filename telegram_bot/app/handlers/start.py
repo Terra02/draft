@@ -14,18 +14,17 @@ async def register_user_in_api(telegram_user: types.User) -> bool:
     """Регистрация пользователя в API"""
     try:
         user_data = {
-            "telegram_id": telegram_user.id,
+            "telegram_id": str(telegram_user.id),
             "username": telegram_user.username,
             "first_name": telegram_user.first_name,
             "last_name": telegram_user.last_name,
-            "is_active": True
         }
         
         logger.info(f"📝 Регистрируем пользователя: {user_data}")
         
         # Пытаемся зарегистрировать пользователя
-        response = await api_client.post("/api/v1/users/", data=user_data)
-        
+        response = await api_client.post("/api/v1/users/", data=user_data) 
+        #
         if response:
             logger.info(f"✅ Пользователь зарегистрирован: {response.get('id')}")
             return True

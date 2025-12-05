@@ -18,13 +18,6 @@ services:
     networks:
       - movie-tracker-network
 
-  redis:
-    image: redis:7-alpine
-    ports:
-      - "6379:6379"
-    networks:
-      - movie-tracker-network
-
   api:
     build: ./api
     env_file:
@@ -33,11 +26,11 @@ services:
       - "8000:8000"
     environment:
       - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
-      - REDIS_URL=redis://redis:6379
       - JWT_SECRET_KEY=${JWT_SECRET_KEY}
+      - WORKER_URL=http://worker:8001
     depends_on:
       - postgres
-      - redis
+      - worker
     networks:
       - movie-tracker-network
 
@@ -46,7 +39,7 @@ services:
     env_file:
       - .env
     environment:
-      - API_URL=http://api:8000
+      - API_URL=http://api:8000/
       - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
     depends_on:
       - api
@@ -60,7 +53,7 @@ services:
     ports:
       - "8501:8501"
     environment:
-      - API_URL=http://api:8000
+      - API_URL=http://api:8000/
     depends_on:
       - api
     networks:
@@ -71,11 +64,9 @@ services:
     env_file:
       - .env
     environment:
-      - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
-      - REDIS_URL=redis://redis:6379
-    depends_on:
-      - postgres
-      - redis
+      - OMDB_API_KEY=${OMDB_API_KEY}
+    ports:
+      - "8001:8001"
     networks:
       - movie-tracker-network
 

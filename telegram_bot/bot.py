@@ -6,7 +6,7 @@ from aiogram.client.default import DefaultBotProperties
 
 from app.config import settings
 from app.handlers import (
-    start, help, view_history, watchlist, 
+    start, help, view_history, add_record_handlers, watchlist, 
     search, analytics, settings as settings_handlers
 )
 from app.utils.scheduler import Scheduler
@@ -29,6 +29,7 @@ async def main():
     dp.include_router(search.router)
     dp.include_router(analytics.router)
     dp.include_router(settings_handlers.router)
+    dp.include_router(add_record_handlers.router)
 
     # Запуск планировщика для уведомлений
     scheduler = Scheduler(bot)
