@@ -9,6 +9,7 @@ from aiogram.fsm.context import FSMContext
 from app.keyboards.main_menu import get_main_menu_keyboard
 from app.keyboards.search_keyboards import get_search_results_keyboard
 from app.services.history_service import HistoryService
+from app.services.watchlist_service import WatchlistService
 from app.states.search_state import SearchState
 from app.utils.text_templates import get_search_results_message
 
@@ -310,24 +311,24 @@ async def add_to_watchlist(callback: types.CallbackQuery, state: FSMContext):
 
     selected = results[index]
     history_service = HistoryService()
+    watchlist_service = WatchlistService()
 
     content = await history_service.ensure_content_exists(selected)
     if not content or not content.get("id"):
         await callback.answer("Не удалось подготовить фильм", show_alert=True)
         return
 
-    saved = await history_service.add_view_history(
+    saved = await watchlist_service.add_to_watchlist(
         telegram_id=callback.from_user.id,
         content_id=content["id"],
         notes="Добавлено в watchlist",
-        user_profile={
-            "username": callback.from_user.username,
-            "first_name": callback.from_user.first_name,
-            "last_name": callback.from_user.last_name,
-        },
     )
 
-    if saved and saved.get("id"):
-        await callback.answer("✅ Добавлено в watchlist")
+    if isinstance(saved, dict) and saved.get("id"):
+        await callback.answer("✅ Добавлено в список желаемого")
+        await callback.message.answer(
+            "✅ Добавлено в список желаемого",
+            reply_markup=get_main_menu_keyboard(),
+        )
     else:
         await callback.answer("Не удалось добавить", show_alert=True)

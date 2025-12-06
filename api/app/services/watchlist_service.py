@@ -98,17 +98,24 @@ class WatchlistService:
             .offset(skip)
             .limit(limit)
         )
-        
+
         watchlist_with_content = []
         for watchlist, content in result:
+            content_dict = {
+                column.key: getattr(content, column.key)
+                for column in Content.__table__.columns
+            }
+
             watchlist_dict = {
-                **watchlist.__dict__,
+                **{column.key: getattr(watchlist, column.key) for column in Watchlist.__table__.columns},
+                "id": watchlist.id,
+                "added_at": watchlist.added_at,
                 "content_title": content.title,
                 "content_type": content.content_type,
-                "content": content.__dict__
+                "content": content_dict,
             }
             watchlist_with_content.append(watchlist_dict)
-        
+
         return watchlist_with_content
 
     async def is_content_in_watchlist(self, user_id: int, content_id: int) -> bool:

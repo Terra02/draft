@@ -86,16 +86,43 @@ def get_watchlist_message(watchlist: List[Dict[str, Any]]) -> str:
     """Шаблон сообщения списка желаемого"""
     if not watchlist:
         return "📝 Ваш список желаемого пуст."
-    
-    message = "📋 <b>Ваш список желаемого:</b>\n\n"
+
+    lines = ["📋 <b>Ваш список желаемого:</b>\n"]
+
     for i, item in enumerate(watchlist, 1):
-        content = item.get('content', {})
-        content_title = content.get('title', 'Неизвестно')
-        priority = item.get('priority', 1)
-        
-        message += f"{i}. {content_title} - Приоритет: {priority}/5\n"
-    
-    return message
+        content = item.get("content") or {}
+        title = content.get("title") or item.get("content_title") or "Без названия"
+        year = content.get("release_year") or "неизвестно"
+        imdb_rating = content.get("imdb_rating")
+        rating_text = f"{imdb_rating}/10" if imdb_rating not in (None, "") else "нет данных"
+        genre = content.get("genre") or "нет данных"
+        director = content.get("director") or "нет данных"
+        cast = content.get("actors_cast") or content.get("cast") or "нет данных"
+        description = content.get("description") or "Описание недоступно"
+        content_type = content.get("content_type") or "movie"
+        type_text = "фильм" if content_type == "movie" else "сериал"
+
+        if len(description) > 400:
+            description = description[:400].rstrip() + "..."
+
+        priority = item.get("priority") or 1
+
+        lines.append(
+            "\n".join(
+                [
+                    f"{i}. 🎬 <b>{title}</b> ({year})",
+                    f"📺 Тип: {type_text}",
+                    f"⭐️ IMDb: {rating_text}",
+                    f"🎭 Жанр: {genre}",
+                    f"🎥 Режиссер: {director}",
+                    f"👥 В ролях: {cast}",
+                    f"📖 Описание: {description}",
+                    f"🎯 Приоритет: {priority}/5",
+                ]
+            )
+        )
+
+    return "\n\n".join(lines)
 
 def get_search_results_message(results: List[Dict[str, Any]], page: int) -> str:
     """Шаблон сообщения детализированного результата поиска"""
