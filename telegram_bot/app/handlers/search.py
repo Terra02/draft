@@ -240,6 +240,11 @@ async def collect_rating(message: types.Message, state: FSMContext):
         rating=rating,
         notes=review,
         watched_at=watched_at,
+        user_profile={
+            "username": message.from_user.username,
+            "first_name": message.from_user.first_name,
+            "last_name": message.from_user.last_name,
+        },
     )
 
     title = content.get("title") or selected.get("title") or "Фильм"
@@ -281,3 +286,48 @@ async def return_to_menu(callback: types.CallbackQuery, state: FSMContext):
         "🏠 Главное меню:", reply_markup=get_main_menu_keyboard()
     )
     await callback.answer()
+
+
+@router.callback_query(F.data.startswith("search_watchlist_"))
+async def add_to_watchlist(callback: types.CallbackQuery, state: FSMContext):
+    """Быстро добавить найденный фильм в список желаемого/историю"""
+    data = await state.get_data()
+    results = data.get("search_results", [])
+
+    if not results:
+        await callback.answer("Результаты недоступны", show_alert=True)
+        return
+
+    try:
+        index = int(callback.data.split("_")[2])
+    except (ValueError, IndexError):
+        await callback.answer("Не удалось определить элемент", show_alert=True)
+        return
+
+    if index < 0 or index >= len(results):
+        await callback.answer("Элемент вне диапазона", show_alert=True)
+        return
+
+    selected = results[index]
+    history_service = HistoryService()
+
+    content = await history_service.ensure_content_exists(selected)
+    if not content or not content.get("id"):
+        await callback.answer("Не удалось подготовить фильм", show_alert=True)
+        return
+
+    saved = await history_service.add_view_history(
+        telegram_id=callback.from_user.id,
+        content_id=content["id"],
+        notes="Добавлено в watchlist",
+        user_profile={
+            "username": callback.from_user.username,
+            "first_name": callback.from_user.first_name,
+            "last_name": callback.from_user.last_name,
+        },
+    )
+
+    if saved and saved.get("id"):
+        await callback.answer("✅ Добавлено в watchlist")
+    else:
+        await callback.answer("Не удалось добавить", show_alert=True)

@@ -20,7 +20,11 @@ def get_search_results_keyboard(results: list, current_page: int) -> InlineKeybo
         InlineKeyboardButton(
             text="➕ Добавить в просмотренное",
             callback_data=f"search_add_{safe_page}",
-        )
+        ),
+        InlineKeyboardButton(
+            text="📝 Добавить в watchlist",
+            callback_data=f"search_watchlist_{safe_page}",
+        ),
     )
 
     # Навигация по страницам
