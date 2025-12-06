@@ -1,27 +1,35 @@
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
-def get_history_navigation_keyboard(current_index: int, total: int, record_id: int) -> InlineKeyboardMarkup:
-    """Клавиатура для навигации по истории"""
+
+def get_history_results_keyboard(records: list, current_page: int) -> InlineKeyboardMarkup:
+    """Клавиатура для просмотра истории"""
     builder = InlineKeyboardBuilder()
-    
-    # Кнопки навигации
-    if current_index > 0:
-        builder.button(text="⬅️", callback_data=f"history_prev_{current_index-1}")
-    
-    builder.button(text=f"{current_index + 1}/{total}", callback_data="current_page")
-    
-    if current_index < total - 1:
-        builder.button(text="➡️", callback_data=f"history_next_{current_index+1}")
-    
-    builder.row()
-    builder.button(text="⭐ Оценить", callback_data=f"rate_{record_id}")
-    builder.button(text="✏️ Редактировать", callback_data=f"edit_{record_id}")
-    
-    builder.row()
-    builder.button(text="❌ Удалить", callback_data=f"delete_{record_id}")
-    builder.button(text="📋 В меню", callback_data="main_menu")
-    
+
+    if not records:
+        builder.button(text="🏠 Меню", callback_data="return_to_menu")
+        return builder.as_markup()
+
+    safe_page = max(0, min(current_page, len(records) - 1))
+
+    navigation_buttons = []
+    if safe_page > 0:
+        navigation_buttons.append(
+            InlineKeyboardButton(text="⬅️ Назад", callback_data=f"history_page_{safe_page-1}")
+        )
+    navigation_buttons.append(
+        InlineKeyboardButton(
+            text=f"{safe_page + 1}/{len(records)}", callback_data="history_page_current"
+        )
+    )
+    if safe_page < len(records) - 1:
+        navigation_buttons.append(
+            InlineKeyboardButton(text="Вперед ➡️", callback_data=f"history_page_{safe_page+1}")
+        )
+
+    builder.row(*navigation_buttons)
+    builder.row(InlineKeyboardButton(text="🏠 Меню", callback_data="return_to_menu"))
+
     return builder.as_markup()
 
 def get_rating_keyboard(record_id: int) -> InlineKeyboardMarkup:

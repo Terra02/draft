@@ -3,12 +3,17 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List, Optional
 
 from app.database import get_db
-from app.schemas.watchlist import WatchlistResponse, WatchlistCreate, WatchlistUpdate
+from app.schemas.watchlist import (
+    WatchlistResponse,
+    WatchlistCreate,
+    WatchlistUpdate,
+    WatchlistWithContent,
+)
 from app.services.watchlist_service import WatchlistService
 
 router = APIRouter(prefix="/watchlist", tags=["watchlist"])
 
-@router.get("/user/{user_id}", response_model=List[WatchlistResponse])
+@router.get("/user/{user_id}", response_model=List[WatchlistWithContent])
 async def get_user_watchlist(
     user_id: int,
     skip: int = Query(0, ge=0),
