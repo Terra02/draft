@@ -74,12 +74,17 @@ async def process_search_query(message: types.Message, state: FSMContext):
                     results = [data]
 
         if error_message:
-            await search_message.edit_text(f"❌ {error_message}")
+            await search_message.edit_text(
+                f"❌ {error_message}", reply_markup=get_main_menu_keyboard()
+            )
             await state.clear()
             return
 
         if not results:
-            await search_message.edit_text("❌ Ничего не найдено. Попробуйте другой запрос.")
+            await search_message.edit_text(
+                "❌ Ничего не найдено. Попробуйте другой запрос.",
+                reply_markup=get_main_menu_keyboard(),
+            )
             await state.clear()
             return
 
@@ -194,6 +199,16 @@ async def collect_watched_date(message: types.Message, state: FSMContext):
         await message.answer(
             "⚠️ Не удалось распознать дату. Введите в формате ДД.ММ.ГГГГ или напишите 'сегодня'."
         )
+        return
+
+    if watched_at.year < 1925 or watched_at.year > today.year:
+        await message.answer(
+            "⚠️ Год просмотра должен быть не раньше 1925 и не позже текущего."
+        )
+        return
+
+    if watched_at.date() > today.date():
+        await message.answer("⚠️ Дата просмотра не может быть в будущем.")
         return
 
     await state.update_data(watched_at=watched_at)
@@ -325,10 +340,10 @@ async def add_to_watchlist(callback: types.CallbackQuery, state: FSMContext):
     )
 
     if isinstance(saved, dict) and saved.get("id"):
-        await callback.answer("✅ Добавлено в список желаемого")
         await callback.message.answer(
             "✅ Добавлено в список желаемого",
             reply_markup=get_main_menu_keyboard(),
         )
+        await callback.answer()
     else:
         await callback.answer("Не удалось добавить", show_alert=True)

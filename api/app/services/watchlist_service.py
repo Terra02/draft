@@ -67,6 +67,17 @@ class WatchlistService:
         logger.info(f"Removed content from watchlist: {watchlist_id}")
         return True
 
+    async def clear_user_watchlist(self, user_id: int) -> None:
+        """Удалить все записи watchlist пользователя"""
+        result = await self.db.execute(
+            select(Watchlist).where(Watchlist.user_id == user_id)
+        )
+        items = result.scalars().all()
+        for item in items:
+            await self.db.delete(item)
+        await self.db.commit()
+        logger.info(f"Cleared watchlist for user {user_id}")
+
     async def get_user_watchlist(
         self, 
         user_id: int, 

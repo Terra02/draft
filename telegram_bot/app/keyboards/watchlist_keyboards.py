@@ -1,21 +1,45 @@
-from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
-def get_watchlist_keyboard(watchlist: list) -> InlineKeyboardMarkup:
-    """Клавиатура для списка желаемого"""
+
+def get_watchlist_results_keyboard(results: list, current_page: int) -> InlineKeyboardMarkup:
+    """Клавиатура для просмотра и управления списком желаемого"""
     builder = InlineKeyboardBuilder()
-    
-    for item in watchlist:
-        builder.button(
-            text=f"🎬 {item['content_title']}",
-            callback_data=f"watchlist_detail_{item['id']}"
+
+    if not results:
+        builder.button(text="🏠 Меню", callback_data="return_to_menu")
+        builder.adjust(1)
+        return builder.as_markup()
+
+    safe_page = max(0, min(current_page, len(results) - 1))
+
+    builder.row(
+        InlineKeyboardButton(
+            text="➕ Добавить в просмотренное",
+            callback_data=f"watchlist_add_{safe_page}",
+        ),
+        InlineKeyboardButton(
+            text="🗑️ Очистить",
+            callback_data="watchlist_clear",
+        ),
+        InlineKeyboardButton(text="🏠 Меню", callback_data="return_to_menu"),
+    )
+
+    navigation_buttons = []
+    if safe_page > 0:
+        navigation_buttons.append(
+            InlineKeyboardButton(
+                text="⬅️ Назад", callback_data=f"watchlist_page_{safe_page-1}"
+            )
         )
-    
-    builder.row()
-    builder.button(text="➕ Добавить", callback_data="add_to_watchlist")
-    builder.button(text="🗑️ Очистить", callback_data="clear_watchlist")
-    
-    builder.row()
-    builder.button(text="📋 В меню", callback_data="main_menu")
-    
+    if safe_page < len(results) - 1:
+        navigation_buttons.append(
+            InlineKeyboardButton(
+                text="Вперед ➡️", callback_data=f"watchlist_page_{safe_page+1}"
+            )
+        )
+
+    if navigation_buttons:
+        builder.row(*navigation_buttons)
+
     return builder.as_markup()

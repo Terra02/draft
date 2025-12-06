@@ -82,47 +82,42 @@ def get_history_results_message(history: List[Dict[str, Any]], page: int) -> str
         f"Запись {index + 1} из {len(history)}"
     )
 
-def get_watchlist_message(watchlist: List[Dict[str, Any]]) -> str:
-    """Шаблон сообщения списка желаемого"""
-    if not watchlist:
+def get_watchlist_message(results: List[Dict[str, Any]], page: int) -> str:
+    """Карточка элемента watchlist"""
+    if not results:
         return "📝 Ваш список желаемого пуст."
 
-    lines = ["📋 <b>Ваш список желаемого:</b>\n"]
+    safe_page = max(0, min(page, len(results) - 1))
+    item = results[safe_page] or {}
+    content = item.get("content") or {}
 
-    for i, item in enumerate(watchlist, 1):
-        content = item.get("content") or {}
-        title = content.get("title") or item.get("content_title") or "Без названия"
-        year = content.get("release_year") or "неизвестно"
-        imdb_rating = content.get("imdb_rating")
-        rating_text = f"{imdb_rating}/10" if imdb_rating not in (None, "") else "нет данных"
-        genre = content.get("genre") or "нет данных"
-        director = content.get("director") or "нет данных"
-        cast = content.get("actors_cast") or content.get("cast") or "нет данных"
-        description = content.get("description") or "Описание недоступно"
-        content_type = content.get("content_type") or "movie"
-        type_text = "фильм" if content_type == "movie" else "сериал"
+    title = content.get("title") or item.get("content_title") or "Без названия"
+    year = content.get("release_year") or "неизвестно"
+    imdb_rating = content.get("imdb_rating")
+    rating_text = f"{imdb_rating}/10" if imdb_rating not in (None, "") else "нет данных"
+    genre = content.get("genre") or "нет данных"
+    director = content.get("director") or "нет данных"
+    cast = content.get("actors_cast") or content.get("cast") or "нет данных"
+    description = content.get("description") or "Описание недоступно"
+    content_type = content.get("content_type") or "movie"
+    type_text = "фильм" if content_type == "movie" else "сериал"
 
-        if len(description) > 400:
-            description = description[:400].rstrip() + "..."
+    if len(description) > 400:
+        description = description[:400].rstrip() + "..."
 
-        priority = item.get("priority") or 1
+    priority = item.get("priority") or 1
 
-        lines.append(
-            "\n".join(
-                [
-                    f"{i}. 🎬 <b>{title}</b> ({year})",
-                    f"📺 Тип: {type_text}",
-                    f"⭐️ IMDb: {rating_text}",
-                    f"🎭 Жанр: {genre}",
-                    f"🎥 Режиссер: {director}",
-                    f"👥 В ролях: {cast}",
-                    f"📖 Описание: {description}",
-                    f"🎯 Приоритет: {priority}/5",
-                ]
-            )
-        )
-
-    return "\n\n".join(lines)
+    return (
+        f"🎬 <b>{title}</b> ({year})\n"
+        f"📺 Тип: {type_text}\n"
+        f"⭐️ IMDb: {rating_text}\n"
+        f"🎭 Жанр: {genre}\n"
+        f"🎥 Режиссер: {director}\n"
+        f"👥 В ролях: {cast}\n"
+        f"📖 Описание: {description}\n"
+        f"🎯 Приоритет: {priority}/5\n\n"
+        f"Запись {safe_page + 1} из {len(results)}"
+    )
 
 def get_search_results_message(results: List[Dict[str, Any]], page: int) -> str:
     """Шаблон сообщения детализированного результата поиска"""
