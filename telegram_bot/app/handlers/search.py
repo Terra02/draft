@@ -252,14 +252,14 @@ async def collect_rating(message: types.Message, state: FSMContext):
 
     if saved and saved.get("id"):
         await message.answer(
-            (
-                f"✅ {title} добавлен в историю!\n"
-                f"⭐️ Ваша оценка: {rating}/10\n"
-                f"🗓 Дата: {watched_at.strftime('%d.%m.%Y') if isinstance(watched_at, datetime) else 'не указана'}"
-                f"{f'\n💬 Отзыв: {review}' if review else ''}"
-            ),
-            reply_markup=get_main_menu_keyboard(),
-        )
+        (
+        f"✅ {title} добавлен в историю!\n"
+        f"⭐️ Ваша оценка: {rating}/10\n"
+        f"🗓 Дата: {watched_at.strftime('%d.%m.%Y') if isinstance(watched_at, datetime) else 'не указана'}"
+        + (f"\n💬 Отзыв: {review}" if review else "")
+        ), 
+        reply_markup=get_main_menu_keyboard(),
+    )
     else:
         await message.answer(
             "❌ Не удалось сохранить просмотр. Попробуйте позже.",
