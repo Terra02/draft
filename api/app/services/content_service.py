@@ -35,7 +35,13 @@ class ContentService:
             if existing_content:
                 return existing_content
 
-        content = Content(**content_data.model_dump())
+        data = content_data.model_dump()
+        cast = data.pop("cast", None)
+
+        content = Content(**data)
+        if cast is not None:
+            content.actors_cast = cast
+
         self.db.add(content)
         await self.db.commit()
         await self.db.refresh(content)
@@ -153,7 +159,7 @@ class ContentService:
             "poster_url": content.poster_url,
             "genre": content.genre,
             "director": content.director,
-            "cast": content.cast,
+            "cast": content.actors_cast,
             "total_seasons": content.total_seasons,
         }
 
@@ -171,8 +177,13 @@ class ContentService:
             return None
 
         update_data = content_data.model_dump(exclude_unset=True)
+        cast = update_data.pop("cast", None)
+
         for field, value in update_data.items():
             setattr(content, field, value)
+
+        if cast is not None:
+            content.actors_cast = cast
 
         await self.db.commit()
         await self.db.refresh(content)
