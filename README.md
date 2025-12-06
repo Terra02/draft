@@ -22,6 +22,17 @@
 ## Быстрый старт
 
 1. Клонируйте репозиторий:
-```bash
-git clone <repository-url>
-cd movie-tracker
+   ```bash
+   git clone <repository-url>
+   cd movie-tracker
+   ```
+2. Подготовьте переменные окружения (можно взять за основу `.env.example` и при необходимости заменить чувствительные значения, например OMDb API key и JWT секрет):
+   ```bash
+   cp .env.example .env
+   ```
+3. Соберите и запустите сервисы:
+   ```bash
+   docker-compose up --build
+   ```
+
+> Примечание: для корректной работы воркера и API требуется действительный ключ OMDb (см. комментарий в `.env.example`).

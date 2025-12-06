@@ -67,6 +67,17 @@ class WatchlistService:
         logger.info(f"Removed content from watchlist: {watchlist_id}")
         return True
 
+    async def clear_user_watchlist(self, user_id: int) -> None:
+        """Удалить все записи watchlist пользователя"""
+        result = await self.db.execute(
+            select(Watchlist).where(Watchlist.user_id == user_id)
+        )
+        items = result.scalars().all()
+        for item in items:
+            await self.db.delete(item)
+        await self.db.commit()
+        logger.info(f"Cleared watchlist for user {user_id}")
+
     async def get_user_watchlist(
         self, 
         user_id: int, 
@@ -98,17 +109,24 @@ class WatchlistService:
             .offset(skip)
             .limit(limit)
         )
-        
+
         watchlist_with_content = []
         for watchlist, content in result:
+            content_dict = {
+                column.key: getattr(content, column.key)
+                for column in Content.__table__.columns
+            }
+
             watchlist_dict = {
-                **watchlist.__dict__,
+                **{column.key: getattr(watchlist, column.key) for column in Watchlist.__table__.columns},
+                "id": watchlist.id,
+                "added_at": watchlist.added_at,
                 "content_title": content.title,
                 "content_type": content.content_type,
-                "content": content.__dict__
+                "content": content_dict,
             }
             watchlist_with_content.append(watchlist_dict)
-        
+
         return watchlist_with_content
 
     async def is_content_in_watchlist(self, user_id: int, content_id: int) -> bool:

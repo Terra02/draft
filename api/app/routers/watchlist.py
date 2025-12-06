@@ -1,14 +1,19 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
-from typing import List, Optional
+from typing import List
 
 from app.database import get_db
-from app.schemas.watchlist import WatchlistResponse, WatchlistCreate, WatchlistUpdate
+from app.schemas.watchlist import (
+    WatchlistResponse,
+    WatchlistCreate,
+    WatchlistUpdate,
+    WatchlistWithContent,
+)
 from app.services.watchlist_service import WatchlistService
 
 router = APIRouter(prefix="/watchlist", tags=["watchlist"])
 
-@router.get("/user/{user_id}", response_model=List[WatchlistResponse])
+@router.get("/user/{user_id}", response_model=List[WatchlistWithContent])
 async def get_user_watchlist(
     user_id: int,
     skip: int = Query(0, ge=0),
@@ -71,6 +76,14 @@ async def remove_from_watchlist(watchlist_id: int, db: AsyncSession = Depends(ge
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Watchlist item not found"
         )
+
+
+@router.delete("/user/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def clear_user_watchlist(user_id: int, db: AsyncSession = Depends(get_db)):
+    """Очистить весь watchlist пользователя"""
+    watchlist_service = WatchlistService(db)
+    await watchlist_service.clear_user_watchlist(user_id)
+
 
 @router.get("/user/{user_id}/check/{content_id}")
 async def check_content_in_watchlist(user_id: int, content_id: int, db: AsyncSession = Depends(get_db)):
