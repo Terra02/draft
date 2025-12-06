@@ -3,12 +3,17 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List
 
 from app.database import get_db
-from app.schemas.view_history import ViewHistoryResponse, ViewHistoryCreate, ViewHistoryUpdate
+from app.schemas.view_history import (
+    ViewHistoryResponse,
+    ViewHistoryCreate,
+    ViewHistoryUpdate,
+    ViewHistoryWithContent,
+)
 from app.services.view_history_service import ViewHistoryService
 
 router = APIRouter(prefix="/view-history", tags=["view-history"])
 
-@router.get("/user/{user_id}", response_model=List[ViewHistoryResponse])
+@router.get("/user/{user_id}", response_model=List[ViewHistoryWithContent])
 async def get_user_view_history(
     user_id: int,
     skip: int = Query(0, ge=0),

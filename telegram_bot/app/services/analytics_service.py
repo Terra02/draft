@@ -19,4 +19,6 @@ class AnalyticsService:
         if not user:
             return None
             
-        return await self.api_client.get(f"/api/v1/history/user/{user['id']}/stats")
+        return await self.api_client.get(
+            f"/api/v1/view-history/user/{user['id']}/stats"
+        )

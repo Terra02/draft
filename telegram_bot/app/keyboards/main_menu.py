@@ -9,11 +9,7 @@ def get_main_menu_keyboard() -> ReplyKeyboardMarkup:
         ],
         [
             KeyboardButton(text="🔍 Поиск"),
-            KeyboardButton(text="➕ Добавить просмотр")
-        ],
-        [
-            KeyboardButton(text="📈 Аналитика"),
-            KeyboardButton(text="⚙️ Настройки")
+            KeyboardButton(text="📈 Аналитика")
         ]
     ]
     return ReplyKeyboardMarkup(
@@ -21,3 +17,4 @@ def get_main_menu_keyboard() -> ReplyKeyboardMarkup:
         resize_keyboard=True,
         input_field_placeholder="Выберите действие..."
     )
+
