@@ -1,4 +1,5 @@
 from typing import Optional, Dict, Any, List
+from datetime import datetime
 from app.services.api_client import api_client
 
 class HistoryService:
@@ -17,18 +18,73 @@ class HistoryService:
         """Получить запись истории по ID"""
         return await self.api_client.get(f"/api/v1/history/{record_id}")
 
-    async def add_view_history(self, telegram_id: int, content_id: int, 
-                             rating: Optional[float] = None, notes: Optional[str] = None) -> Optional[Dict[str, Any]]:
+    async def ensure_content_exists(self, result: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """Убедиться, что контент есть в базе, при необходимости создать"""
+        imdb_id = result.get("imdb_id")
+
+        # 1. Пытаемся найти по IMDb ID
+        if imdb_id:
+            existing = await self.api_client.get(f"/api/v1/content/imdb/{imdb_id}")
+            if existing and existing.get("id"):
+                return existing
+
+        title = result.get("title") or result.get("original_title")
+        if not title:
+            return None
+
+        # 2. Пробуем найти по поиску в нашей базе
+        search_resp = await self.api_client.get(
+            "/api/v1/content/search",
+            params={"query": title, "limit": 1},
+        )
+        if search_resp and search_resp.get("results"):
+            first = search_resp["results"][0]
+            if first and first.get("id"):
+                return first
+
+        # 3. Создаём новую запись по данным из OMDB/Worker
+        payload = {
+            "title": title,
+            "original_title": result.get("original_title") or title,
+            "description": result.get("description"),
+            "content_type": result.get("content_type") or "movie",
+            "release_year": result.get("release_year"),
+            "duration_minutes": result.get("duration_minutes"),
+            "total_seasons": result.get("total_seasons"),
+            "total_episodes": result.get("total_episodes"),
+            "imdb_rating": result.get("imdb_rating"),
+            "imdb_id": imdb_id,
+            "poster_url": result.get("poster_url"),
+            "genre": result.get("genre"),
+            "director": result.get("director"),
+            "cast": result.get("cast"),
+        }
+
+        created = await self.api_client.post("/api/v1/content/", data=payload)
+        if created and created.get("id"):
+            return created
+
+        return None
+
+    async def add_view_history(
+        self,
+        telegram_id: int,
+        content_id: int,
+        rating: Optional[float] = None,
+        notes: Optional[str] = None,
+        watched_at: Optional[datetime] = None,
+    ) -> Optional[Dict[str, Any]]:
         """Добавить запись в историю просмотров"""
         user = await self.api_client.get(f"/api/v1/users/telegram/{telegram_id}")
         if not user:
             return None
-            
+
         history_data = {
             "user_id": user["id"],
             "content_id": content_id,
             "rating": rating,
-            "notes": notes
+            "notes": notes,
+            "watched_at": watched_at.isoformat() if isinstance(watched_at, datetime) else watched_at,
         }
         ##поменял endpoint
         return await self.api_client.post("/api/v1/view-history/", data=history_data)
