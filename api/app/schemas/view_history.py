@@ -5,6 +5,7 @@ from typing import Optional
 class ViewHistoryBase(BaseModel):
     user_id: int
     content_id: int
+    watched_at: Optional[datetime] = None
     rating: Optional[float] = None
     season: Optional[int] = None
     episode: Optional[int] = None
@@ -17,6 +18,7 @@ class ViewHistoryCreate(ViewHistoryBase):
     pass
 
 class ViewHistoryUpdate(BaseModel):
+    watched_at: Optional[datetime] = None
     rating: Optional[float] = None
     season: Optional[int] = None
     episode: Optional[int] = None
