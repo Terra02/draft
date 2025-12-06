@@ -8,17 +8,30 @@ class HistoryService:
         self.api_client = api_client
         self.user_service = UserService()
 
-    async def get_user_history(self, telegram_id: int, limit: int = 10) -> List[Dict[str, Any]]:
+    async def get_user_history(
+        self,
+        telegram_id: int,
+        limit: int = 10,
+        profile: Optional[Dict[str, Any]] = None,
+    ) -> List[Dict[str, Any]]:
         """Получить историю пользователя"""
-        user = await self.api_client.get(f"/api/v1/users/telegram/{telegram_id}")
+        user = await self.user_service.get_or_create_user(
+            telegram_id=telegram_id,
+            username=(profile or {}).get("username"),
+            first_name=(profile or {}).get("first_name"),
+            last_name=(profile or {}).get("last_name"),
+        )
+
         if not user:
             return []
-            
-        return await self.api_client.get(f"/api/v1/history/user/{user['id']}?limit={limit}")
+
+        return await self.api_client.get(
+            f"/api/v1/view-history/user/{user['id']}?limit={limit}"
+        )
 
     async def get_history_record(self, record_id: int) -> Optional[Dict[str, Any]]:
         """Получить запись истории по ID"""
-        return await self.api_client.get(f"/api/v1/history/{record_id}")
+        return await self.api_client.get(f"/api/v1/view-history/{record_id}")
 
     async def ensure_content_exists(self, result: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """Убедиться, что контент есть в базе, при необходимости создать"""
@@ -106,4 +119,6 @@ class HistoryService:
 
     async def update_rating(self, record_id: int, rating: float) -> Optional[Dict[str, Any]]:
         """Обновить рейтинг записи"""
-        return await self.api_client.put(f"/api/v1/history/{record_id}", data={"rating": rating})
+        return await self.api_client.put(
+            f"/api/v1/view-history/{record_id}", data={"rating": rating}
+        )
