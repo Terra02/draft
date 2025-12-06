@@ -72,12 +72,19 @@ async def clear_watchlist(callback: types.CallbackQuery, state: FSMContext):
 
     if cleared:
         await state.clear()
-        await callback.message.edit_text(
+        try:
+            await callback.message.delete()
+        except Exception:
+            # Если сообщение удалить не удалось (например, уже удалено), продолжаем
+            pass
+
+        await callback.message.answer(
             "🗑️ Список желаемого очищен.", reply_markup=get_main_menu_keyboard()
         )
-    else:
-        await callback.answer("Не удалось очистить", show_alert=True)
-    await callback.answer()
+        await callback.answer()
+        return
+
+    await callback.answer("Не удалось очистить", show_alert=True)
 
 
 @router.callback_query(WatchlistState.viewing, F.data.startswith("watchlist_add_"))
@@ -166,6 +173,15 @@ async def watchlist_rating(message: types.Message, state: FSMContext):
     content_id = content.get("id")
     watchlist_id = selected.get("id")
 
+    history_service = HistoryService()
+    watchlist_service = WatchlistService()
+
+    if not content_id:
+        ensured = await history_service.ensure_content_exists(content)
+        content_id = (ensured or {}).get("id")
+        if content_id:
+            content = ensured or content
+
     if not content_id or not watchlist_id:
         await message.answer(
             "❌ Не удалось определить фильм. Попробуйте снова через список желаемого.",
@@ -173,9 +189,6 @@ async def watchlist_rating(message: types.Message, state: FSMContext):
         )
         await state.clear()
         return
-
-    history_service = HistoryService()
-    watchlist_service = WatchlistService()
 
     saved = await history_service.add_view_history(
         telegram_id=message.from_user.id,
