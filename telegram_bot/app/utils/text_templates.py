@@ -62,10 +62,10 @@ def get_watchlist_message(watchlist: List[Dict[str, Any]]) -> str:
     return message
 
 def get_search_results_message(results: List[Dict[str, Any]], page: int) -> str:
-    """Шаблон сообщения результатов поиска"""
+    """Шаблон сообщения детализированного результата поиска"""
     if not results:
         return "❌ По вашему запросу ничего не найдено."
-    
+
     index = max(0, min(page, len(results) - 1))
     result = results[index]
 

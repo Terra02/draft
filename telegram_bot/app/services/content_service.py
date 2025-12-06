@@ -10,16 +10,15 @@ class ContentService:
         self.api_client = api_client
     
     async def search_content(self, title: str, content_type: str = None) -> Dict[str, Any]:
-        """Поиск для бота через API"""
+        """Поиск для бота через API: возвращаем ответ API как есть"""
         params = {"title": title}
         if content_type:
             params["content_type"] = content_type
-        
-        # Бот вызывает специальный endpoint для бота
+
         response = await self.api_client.get("/api/v1/bot/search", params=params)
-        
+
         if not response:
-             return {"success": False, "message": f"Ошибка при поиске '{title}'"}
+            return {"success": False, "message": f"Ошибка при поиске '{title}'"}
 
         return response
     

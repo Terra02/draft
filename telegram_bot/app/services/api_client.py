@@ -16,6 +16,7 @@ class APIClient:
         """Выполнить запрос к API"""
         try:
             response = await self.client.request(method, endpoint, **kwargs)
+            # Возвращаем тело ответа даже при ошибочных статусах, чтобы бот мог показать причину
             if response.is_success:
                 if response.status_code == 204:
                     return {"success": True}

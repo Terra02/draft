@@ -14,7 +14,7 @@ class WorkerAdapter:
         self.client = httpx.AsyncClient(timeout=30.0)
     
     async def search_omdb(self, title: str, content_type: str = None) -> Optional[List[Dict[str, Any]]]:
-        """Поиск фильма/сериала через Worker"""
+        """Поиск фильма/сериала через Worker (список результатов)"""
         try:
             logger.info(f"🔍 WorkerAdapter ищет: {title}")
             
@@ -30,7 +30,7 @@ class WorkerAdapter:
             
             if response.status_code == 200:
                 result = response.json()
-                
+
                 if result.get("success"):
                     data = result.get("data")
                     logger.info(f"✅ WorkerAdapter получил {len(data) if data else 0} результатов")
@@ -38,9 +38,10 @@ class WorkerAdapter:
 
                 logger.warning(f"❌ WorkerAdapter не нашел: {result.get('error')}")
                 return None
+
             logger.error(f"❌ WorkerAdapter error: {response.status_code}")
             return None
-            
+                
         except Exception as e:
             logger.error(f"💥 Ошибка WorkerAdapter: {e}")
             return None

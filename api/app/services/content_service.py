@@ -56,18 +56,19 @@ class ContentService:
                 stmt = stmt.where(Content.content_type == content_type)
             
             result = await self.db.execute(stmt)
+            # Если найдено несколько записей, берем первую, чтобы не падать с ошибкой
             content = result.scalars().first()
-            
+
             if content:
                 return {
                     "source": "database",
                     "data": self._content_to_dict(content),
                     "message": "Уже есть в базе"
                 }
-            
-            # 2. Ищем через Worker
+
+            # 2. Ищем через Worker (получаем список до 5 элементов)
             worker_result = await worker_adapter.search_omdb(title, content_type)
-            
+
             if worker_result:
                 return {
                     "source": "omdb",
