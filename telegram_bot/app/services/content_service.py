@@ -19,32 +19,9 @@ class ContentService:
         response = await self.api_client.get("/api/v1/bot/search", params=params)
         
         if not response:
-            return {
-                "found_in_db": False,
-                "found_in_omdb": False,
-                "formatted_text": f"❌ Ошибка при поиске '{title}'"
-            }
-        
-        if response["source"] == "database":
-            return {
-                "found_in_db": True,
-                "found_in_omdb": False,
-                "db_content": response["data"],
-                "formatted_text": f"✅ Найден в базе: <b>{response['data']['title']}</b>"
-            }
-        elif response["source"] == "omdb":
-            return {
-                "found_in_db": False,
-                "found_in_omdb": True,
-                "omdb_content": response["data"],
-                "formatted_text": self._format_omdb_result(response["data"])
-            }
-        else:
-            return {
-                "found_in_db": False,
-                "found_in_omdb": False,
-                "formatted_text": f"❌ Не найден: '{title}'"
-            }
+             return {"success": False, "message": f"Ошибка при поиске '{title}'"}
+
+        return response
     
     async def add_from_omdb(self, title: str, content_type: str = "movie") -> Optional[Dict[str, Any]]:
         """Добавить контент из OMDB через API"""

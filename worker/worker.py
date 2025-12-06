@@ -3,7 +3,7 @@ from fastapi import FastAPI, HTTPException
 import httpx
 import os
 import logging
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 from pydantic import BaseModel
 
 app = FastAPI(title="OMDB Worker")
@@ -15,7 +15,7 @@ class SearchRequest(BaseModel):
 
 class SearchResponse(BaseModel):
     success: bool
-    data: Optional[Dict[str, Any]] = None
+    data: Optional[List[Dict[str, Any]]] = None
     error: Optional[str] = None
 
 class OMDBService:
@@ -26,44 +26,77 @@ class OMDBService:
         if not self.api_key:
             logger.error("❌ OMDB_API_KEY not configured in worker")
     
-    async def search(self, title: str, content_type: str = None) -> Optional[Dict[str, Any]]:
+    async def search(self, title: str, content_type: str = None) -> Optional[List[Dict[str, Any]]]:
         """Поиск в OMDB API"""
         if not self.api_key:
             logger.error("OMDB API key not configured")
             return None
         
         try:
-            params = {
+            search_params = {
                 "apikey": self.api_key,
-                "t": title,
+                "s": title,
                 "plot": "short"
             }
             
             if content_type:
-                params["type"] = content_type
-            
-            logger.info(f"🔍 Worker ищет в OMDB: {title}")
+                 search_params["type"] = content_type
+
+            logger.info(f"🔍 Worker ищет в OMDB (list): {title}")
+
             
             async with httpx.AsyncClient(timeout=30.0) as client:
-                response = await client.get(self.base_url, params=params)
-                
-                if response.status_code == 200:
-                    data = response.json()
-                    
-                    if data.get("Response") == "True":
-                        logger.info(f"✅ Worker нашел: {data.get('Title')}")
-                        return self._parse_response(data)
-                    else:
-                        logger.warning(f"❌ Не найден в OMDB: {data.get('Error')}")
-                        return None
-                else:
-                    logger.error(f"❌ OMDB API error: {response.status_code}")
+                search_resp = await client.get(self.base_url, params=search_params)
+
+                if search_resp.status_code != 200:
+                    logger.error(f"❌ OMDB API error: {search_resp.status_code}")
                     return None
+
+                search_data = search_resp.json()
+                if search_data.get("Response") != "True" or not search_data.get("Search"):
+                    logger.warning(f"❌ Не найдено в OMDB: {search_data.get('Error')}")
+                    return None
+                
+                parsed_results: List[Dict[str, Any]] = []
+                for item in search_data.get("Search", [])[:5]:
+                    imdb_id = item.get("imdbID")
+                    if not imdb_id:
+                        continue
+
+                    details = await self._fetch_details(client, imdb_id)
+                    if details:
+                        parsed_results.append(details)
+
+                return parsed_results if parsed_results else None
                     
         except Exception as e:
             logger.error(f"💥 Worker error: {e}")
             return None
     
+    async def _fetch_details(self, client: httpx.AsyncClient, imdb_id: str) -> Optional[Dict[str, Any]]:
+        """Получить детальную информацию по imdbID"""
+        try:
+            params = {
+                "apikey": self.api_key,
+                "i": imdb_id,
+                "plot": "short"
+            }
+            detail_resp = await client.get(self.base_url, params=params)
+            if detail_resp.status_code != 200:
+                logger.error(f"❌ OMDB detail error for {imdb_id}: {detail_resp.status_code}")
+                return None
+
+            detail_data = detail_resp.json()
+            if detail_data.get("Response") != "True":
+                logger.warning(f"❌ Не удалось получить детали для {imdb_id}: {detail_data.get('Error')}")
+                return None
+
+            logger.info(f"✅ Детали OMDB: {detail_data.get('Title')}")
+            return self._parse_response(detail_data)
+        except Exception as e:
+            logger.error(f"💥 Ошибка при получении деталей OMDB {imdb_id}: {e}")
+            return None
+        
     def _parse_response(self, data: Dict[str, Any]) -> Dict[str, Any]:
         """Парсинг ответа OMDB"""
         content_type = "movie"
@@ -99,7 +132,11 @@ class OMDBService:
             "genre": data.get("Genre"),
             "director": data.get("Director"),
             "cast": data.get("Actors"),
-            "total_seasons": int(data["totalSeasons"]) if data.get("totalSeasons") and data.get("totalSeasons") != "N/A" else None
+            "total_seasons": (
+                int(data["totalSeasons"])
+                if data.get("totalSeasons") and data.get("totalSeasons") != "N/A"
+                else None
+            ),
         }
 
 # Инициализация сервиса

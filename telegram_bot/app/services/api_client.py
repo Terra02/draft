@@ -16,19 +16,27 @@ class APIClient:
         """Выполнить запрос к API"""
         try:
             response = await self.client.request(method, endpoint, **kwargs)
-            response.raise_for_status()
-            
-            # Для DELETE запросов может не быть тела ответа
-            if response.status_code == 204:
-                return {"success": True}
-                
-            return response.json()
+            if response.is_success:
+                if response.status_code == 204:
+                    return {"success": True}
+                return response.json()
+
+            try:
+                error_body = response.json()
+            except Exception:
+                error_body = {"detail": response.text}
+
+            return {
+                "success": False,
+                "status_code": response.status_code,
+                **(error_body if isinstance(error_body, dict) else {"error": str(error_body)}),
+            }
         except httpx.HTTPError as e:
             logger.error(f"API request failed: {e}")
-            return None
+            return {"success": False, "error": str(e)}
         except Exception as e:
             logger.error(f"Unexpected error in API request: {e}")
-            return None
+            return {"success": False, "error": str(e)}
 
     async def get(self, endpoint: str, params: Optional[Dict] = None) -> Optional[Dict[str, Any]]:
         """GET запрос"""

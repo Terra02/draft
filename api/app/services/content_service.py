@@ -56,7 +56,7 @@ class ContentService:
                 stmt = stmt.where(Content.content_type == content_type)
             
             result = await self.db.execute(stmt)
-            content = result.scalar_one_or_none()
+            content = result.scalars().first()
             
             if content:
                 return {
