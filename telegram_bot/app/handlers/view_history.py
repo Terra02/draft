@@ -1,5 +1,5 @@
 from aiogram import Router, types, F
-from aiogram.filters import Command, StateFilter
+from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 
 from app.keyboards.history_keyboards import (
@@ -7,7 +7,6 @@ from app.keyboards.history_keyboards import (
     get_rating_keyboard
 )
 from app.keyboards.main_menu import get_main_menu_keyboard
-from app.states.add_record_state import AddRecordState
 from app.services.history_service import HistoryService
 from app.services.content_service import ContentService
 from app.utils.formatters import format_history_record
@@ -57,12 +56,3 @@ async def show_history_detail(callback: types.CallbackQuery):
     
     await callback.message.edit_text(text, reply_markup=keyboard, parse_mode="HTML")
     await callback.answer()
-
-@router.message(F.text == "➕ Добавить просмотр")
-async def add_view_start(message: types.Message, state: FSMContext):
-    """Начать процесс добавления просмотра"""
-    await state.set_state(AddRecordState.waiting_for_title)
-    await message.answer(
-        "🎬 Введите название фильма или сериала:",
-        reply_markup=types.ReplyKeyboardRemove()
-    )

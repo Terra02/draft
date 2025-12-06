@@ -62,23 +62,39 @@ def get_watchlist_message(watchlist: List[Dict[str, Any]]) -> str:
     return message
 
 def get_search_results_message(results: List[Dict[str, Any]], page: int) -> str:
-    """Шаблон сообщения результатов поиска"""
+    """Шаблон сообщения детализированного результата поиска"""
     if not results:
         return "❌ По вашему запросу ничего не найдено."
-    
-    start_idx = page * 5
-    end_idx = start_idx + 5
-    current_results = results[start_idx:end_idx]
-    
-    message = f"🔍 <b>Результаты поиска</b> (стр. {page + 1}):\n\n"
-    
-    for i, result in enumerate(current_results, start_idx + 1):
-        content_type = "фильм" if result.get('content_type') == 'movie' else "сериал"
-        release_year = result.get('release_year', 'неизвестно')
-        
-        message += f"{i}. {result['title']} ({release_year}) - {content_type}\n"
-    
-    return message
+
+    index = max(0, min(page, len(results) - 1))
+    result = results[index]
+
+    title = result.get("title") or "Без названия"
+    year = result.get("release_year") or "неизвестно"
+    imdb_rating = result.get("imdb_rating")
+    rating_text = f"{imdb_rating}/10" if imdb_rating not in (None, "") else "нет данных"
+    genre = result.get("genre") or "нет данных"
+    director = result.get("director") or "нет данных"
+    cast = result.get("cast") or "нет данных"
+    description = result.get("description") or "Описание недоступно"
+
+    # Обрезаем слишком длинные описания, чтобы сообщение помещалось
+    if len(description) > 600:
+        description = description[:600].rstrip() + "..."
+
+    content_type = result.get("content_type") or "movie"
+    type_text = "фильм" if content_type == "movie" else "сериал"
+
+    return (
+        f"🎬 <b>{title}</b> ({year})\n"
+        f"📺 Тип: {type_text}\n"
+        f"⭐️ IMDb: {rating_text}\n"
+        f"🎭 Жанр: {genre}\n"
+        f"🎥 Режиссер: {director}\n"
+        f"👥 В ролях: {cast}\n"
+        f"📖 Описание: {description}\n\n"
+        f"Результат {index + 1} из {len(results)}"
+    )
 
 def get_analytics_message(analytics: Dict[str, Any]) -> str:
     """Шаблон сообщения аналитики"""

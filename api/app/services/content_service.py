@@ -35,7 +35,13 @@ class ContentService:
             if existing_content:
                 return existing_content
 
-        content = Content(**content_data.model_dump())
+        data = content_data.model_dump()
+        cast = data.pop("cast", None)
+
+        content = Content(**data)
+        if cast is not None:
+            content.actors_cast = cast
+
         self.db.add(content)
         await self.db.commit()
         await self.db.refresh(content)
@@ -56,18 +62,19 @@ class ContentService:
                 stmt = stmt.where(Content.content_type == content_type)
             
             result = await self.db.execute(stmt)
-            content = result.scalar_one_or_none()
-            
+            # Если найдено несколько записей, берем первую, чтобы не падать с ошибкой
+            content = result.scalars().first()
+
             if content:
                 return {
                     "source": "database",
                     "data": self._content_to_dict(content),
                     "message": "Уже есть в базе"
                 }
-            
-            # 2. Ищем через Worker
+
+            # 2. Ищем через Worker (получаем список до 5 элементов)
             worker_result = await worker_adapter.search_omdb(title, content_type)
-            
+
             if worker_result:
                 return {
                     "source": "omdb",
@@ -152,7 +159,7 @@ class ContentService:
             "poster_url": content.poster_url,
             "genre": content.genre,
             "director": content.director,
-            "cast": content.cast,
+            "cast": content.actors_cast,
             "total_seasons": content.total_seasons,
         }
 
@@ -170,8 +177,13 @@ class ContentService:
             return None
 
         update_data = content_data.model_dump(exclude_unset=True)
+        cast = update_data.pop("cast", None)
+
         for field, value in update_data.items():
             setattr(content, field, value)
+
+        if cast is not None:
+            content.actors_cast = cast
 
         await self.db.commit()
         await self.db.refresh(content)

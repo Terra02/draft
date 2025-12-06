@@ -8,12 +8,10 @@ def get_main_menu_keyboard() -> ReplyKeyboardMarkup:
             KeyboardButton(text="📋 Список желаемого")
         ],
         [
-            KeyboardButton(text="🔍 Поиск"),
-            KeyboardButton(text="➕ Добавить просмотр")
+            KeyboardButton(text="🔍 Поиск")
         ],
         [
-            KeyboardButton(text="📈 Аналитика"),
-            KeyboardButton(text="⚙️ Настройки")
+            KeyboardButton(text="📈 Аналитика")
         ]
     ]
     return ReplyKeyboardMarkup(
