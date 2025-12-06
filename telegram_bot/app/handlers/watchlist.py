@@ -207,14 +207,16 @@ async def watchlist_rating(message: types.Message, state: FSMContext):
 
     if saved and saved.get("id"):
         await watchlist_service.remove_from_watchlist(watchlist_id)
-        confirmation = (
+        await message.answer(
+            (
             f"✅ {title} добавлен в историю!\n"
             f"⭐️ Ваша оценка: {rating}/10\n"
             f"🗓 Дата: {watched_at.strftime('%d.%m.%Y') if isinstance(watched_at, datetime) else 'не указана'}"
-            f"{f'\n💬 Отзыв: {review}' if review else ''}"
-            "\n\nФильм удален из списка желаемого."
+            + (f"\n💬 Отзыв: {review}" if review else "")
+            + "\n\nФильм удален из списка желаемого.",
+            ),
+            reply_markup=get_main_menu_keyboard(),
         )
-        await message.answer(confirmation, reply_markup=get_main_menu_keyboard())
     else:
         await message.answer(
             "❌ Не удалось сохранить просмотр. Попробуйте позже.",
