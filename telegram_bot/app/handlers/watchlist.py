@@ -114,15 +114,68 @@ async def start_add_from_watchlist(callback: types.CallbackQuery, state: FSMCont
         return
 
     selected = results[page]
-    await state.update_data(selected_watchlist_item=selected)
+    await state.update_data(
+        selected_watchlist_item=selected,
+        season=None,
+        episode=None,
+    )
 
+    content = selected.get("content") or {}
+    content_type = content.get("content_type") or selected.get("content_type")
+    title = content.get("title") or selected.get("content_title") or "фильм"
+
+    if content_type == "series":
+        await callback.message.answer(
+            f"📺 Укажите сезон для «{title}» (числом)",
+            reply_markup=types.ReplyKeyboardRemove(),
+        )
+        await state.set_state(WatchlistState.waiting_for_season)
+    else:
+        await callback.message.answer(
+            f"💬 Оставьте отзыв о фильме «{title}» (или отправьте '-' чтобы пропустить):",
+            reply_markup=types.ReplyKeyboardRemove(),
+        )
+        await state.set_state(WatchlistState.waiting_for_review)
+    await callback.answer()
+
+
+@router.message(WatchlistState.waiting_for_season)
+async def watchlist_season(message: types.Message, state: FSMContext):
+    text = (message.text or "").strip()
+    try:
+        season = int(text)
+        if season <= 0:
+            raise ValueError
+    except ValueError:
+        await message.answer("⚠️ Введите номер сезона числом (например, 1)")
+        return
+
+    await state.update_data(season=season)
+    await message.answer("📺 Укажите серию (числом)", reply_markup=types.ReplyKeyboardRemove())
+    await state.set_state(WatchlistState.waiting_for_episode)
+
+
+@router.message(WatchlistState.waiting_for_episode)
+async def watchlist_episode(message: types.Message, state: FSMContext):
+    text = (message.text or "").strip()
+    try:
+        episode = int(text)
+        if episode <= 0:
+            raise ValueError
+    except ValueError:
+        await message.answer("⚠️ Введите номер серии числом (например, 1)")
+        return
+
+    await state.update_data(episode=episode)
+    data = await state.get_data()
+    selected = data.get("selected_watchlist_item") or {}
     title = (selected.get("content") or {}).get("title") or selected.get("content_title") or "фильм"
-    await callback.message.answer(
+
+    await message.answer(
         f"💬 Оставьте отзыв о фильме «{title}» (или отправьте '-' чтобы пропустить):",
         reply_markup=types.ReplyKeyboardRemove(),
     )
     await state.set_state(WatchlistState.waiting_for_review)
-    await callback.answer()
 
 
 @router.message(WatchlistState.waiting_for_review)
@@ -204,6 +257,8 @@ async def watchlist_rating(message: types.Message, state: FSMContext):
         rating=rating,
         notes=review,
         watched_at=watched_at,
+        season=data.get("season"),
+        episode=data.get("episode"),
         user_profile={
             "username": message.from_user.username,
             "first_name": message.from_user.first_name,
@@ -225,6 +280,8 @@ async def watchlist_rating(message: types.Message, state: FSMContext):
                 rating=rating,
                 notes=review,
                 watched_at=watched_at,
+                season=data.get("season"),
+                episode=data.get("episode"),
                 user_profile={
                     "username": message.from_user.username,
                     "first_name": message.from_user.first_name,
