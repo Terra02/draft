@@ -12,10 +12,6 @@ from app.routers import (
 
 # Импортируем роутер для бота
 from app.routers.bot_content import router as bot_content_router
-##для теста
-from app.emergency_bot import emergency_router
-
-
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -43,9 +39,6 @@ app.include_router(view_history_router, prefix="/api/v1")
 app.include_router(watchlist_router, prefix="/api/v1")
 app.include_router(analytics_router, prefix="/api/v1")
 app.include_router(categories_router, prefix="/api/v1")
-#для теста
-app.include_router(emergency_router, prefix="/api/v1/emergency/bot")
-
 # Подключаем роутер для бота
 app.include_router(bot_content_router, prefix="/api/v1", tags=["bot"])
 

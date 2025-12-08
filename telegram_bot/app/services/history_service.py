@@ -25,9 +25,24 @@ class HistoryService:
         if not user:
             return []
 
-        return await self.api_client.get(
+        history = await self.api_client.get(
             f"/api/v1/view-history/user/{user['id']}?limit={limit}"
         )
+
+        if not isinstance(history, list):
+            return history
+
+        def _parse_date(item: Dict[str, Any]):
+            for key in ("watched_at", "created_at"):
+                value = item.get(key)
+                if isinstance(value, str):
+                    try:
+                        return datetime.fromisoformat(value)
+                    except ValueError:
+                        continue
+            return datetime.min
+
+        return sorted(history, key=_parse_date, reverse=True)
 
     async def get_history_record(self, record_id: int) -> Optional[Dict[str, Any]]:
         """Получить запись истории по ID"""
