@@ -8,10 +8,9 @@ from .analytics_service import AnalyticsService
 
 __all__ = [
     "UserService",
-    "ContentService", 
+    "ContentService",
     "ViewHistoryService",
     "WatchlistService",
     "CategoryService",
     "AnalyticsService",
-    "IMDbService"
 ]
