@@ -53,41 +53,74 @@ class ContentService:
         title: str,
         content_type: str = None
     ) -> Dict[str, Any]:
-        """Упрощенная версия поиска для бота"""
+        """Упрощенная версия поиска для бота
+
+        Если контент уже есть в базе (просмотренный), возвращаем его первым,
+        а далее добавляем до четырех результатов из OMDB, чтобы бот показал
+        до пяти карточек.
+        """
         try:
             # 1. Простой поиск в базе
             stmt = select(Content).where(Content.title.ilike(f"%{title}%"))
-            
+
             if content_type:
                 stmt = stmt.where(Content.content_type == content_type)
-            
+
             result = await self.db.execute(stmt)
             # Если найдено несколько записей, берем первую, чтобы не падать с ошибкой
             content = result.scalars().first()
 
+            db_item = None
             if content:
-                return {
+                db_item = {
+                    **self._content_to_dict(content),
                     "source": "database",
-                    "data": self._content_to_dict(content),
-                    "message": "Уже есть в базе"
+                    "already_watched": True,
                 }
 
             # 2. Ищем через Worker (получаем список до 5 элементов)
-            worker_result = await worker_adapter.search_omdb(title, content_type)
+            worker_result = await worker_adapter.search_omdb(title, content_type) or []
 
-            if worker_result:
+            omdb_items = []
+            seen_imdb_ids = set()
+
+            if db_item and db_item.get("imdb_id"):
+                seen_imdb_ids.add(db_item["imdb_id"])
+
+            # Берем столько результатов, чтобы всего карточек было до пяти
+            max_omdb_items = 5 - (1 if db_item else 0)
+
+            for item in worker_result:
+                imdb_id = item.get("imdb_id")
+                if imdb_id and imdb_id in seen_imdb_ids:
+                    continue
+                if imdb_id:
+                    seen_imdb_ids.add(imdb_id)
+                omdb_items.append({**item, "source": "omdb", "already_watched": False})
+
+                if len(omdb_items) >= max_omdb_items:
+                    break
+
+            # 3. Составляем итоговый список (до 5 элементов)
+            combined: list = []
+            if db_item:
+                combined.append(db_item)
+
+            combined.extend(omdb_items)
+
+            if combined:
                 return {
-                    "source": "omdb",
-                    "data": worker_result,
-                    "message": "Найдено в OMDB через Worker"
+                    "source": "mixed" if db_item and omdb_items else (db_item and "database") or "omdb",
+                    "data": combined,
+                    "message": "Найдены результаты поиска"
                 }
-            
+
             return {
                 "source": "not_found",
                 "data": None,
                 "message": f"'{title}' не найден в OMDB"
             }
-            
+
         except Exception as e:
             logger.error(f"Error in search_omdb_direct: {e}")
             return {

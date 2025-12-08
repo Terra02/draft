@@ -176,11 +176,11 @@ async def watchlist_rating(message: types.Message, state: FSMContext):
     history_service = HistoryService()
     watchlist_service = WatchlistService()
 
-    if not content_id:
-        ensured = await history_service.ensure_content_exists(content)
-        content_id = (ensured or {}).get("id")
-        if content_id:
-            content = ensured or content
+    # Всегда убеждаемся, что контент существует и можем получить его ID
+    ensured = await history_service.ensure_content_exists(content)
+    if ensured:
+        content = ensured
+        content_id = content.get("id")
 
     if not content_id or not watchlist_id:
         await message.answer(
