@@ -11,6 +11,7 @@ from app.keyboards.search_keyboards import get_search_results_keyboard
 from app.services.history_service import HistoryService
 from app.services.watchlist_service import WatchlistService
 from app.states.search_state import SearchState
+from app.utils.message_helpers import send_content_card, update_content_card
 from app.utils.text_templates import get_search_results_message
 
 router = Router()
@@ -52,7 +53,7 @@ async def process_search_query(message: types.Message, state: FSMContext):
             source = raw_result.get("source")
 
             # Стандартная схема API для бота
-            if source in {"database", "omdb"}:
+            if source in {"database", "omdb", "mixed"}:
                 data = raw_result.get("data")
                 if isinstance(data, list):
                     results = data
@@ -103,7 +104,17 @@ async def process_search_query(message: types.Message, state: FSMContext):
         text = get_search_results_message(results, 0)
         keyboard = get_search_results_keyboard(results, 0)
 
-        await search_message.edit_text(text, reply_markup=keyboard, parse_mode="HTML")
+        try:
+            await search_message.delete()
+        except Exception:
+            pass
+
+        await send_content_card(
+            message,
+            text,
+            keyboard=keyboard,
+            poster_url=results[0].get("poster_url"),
+        )
         await state.set_state(SearchState.waiting_for_selection)
         logger.info(f"✅ Поиск завершен, найдено {len(results)} результатов")
 
@@ -130,7 +141,10 @@ async def change_search_page(callback: types.CallbackQuery, state: FSMContext):
     text = get_search_results_message(results, current_page)
     keyboard = get_search_results_keyboard(results, current_page)
 
-    await callback.message.edit_text(text, reply_markup=keyboard, parse_mode="HTML")
+    poster_url = results[current_page].get("poster_url")
+    await update_content_card(
+        callback.message, text, keyboard=keyboard, poster_url=poster_url
+    )
     await state.update_data(current_page=current_page)
     await callback.answer()
 
@@ -156,15 +170,78 @@ async def start_add_to_history(callback: types.CallbackQuery, state: FSMContext)
         return
 
     selected = results[index]
+    if selected.get("already_watched"):
+        await callback.answer("Фильм уже просмотрен", show_alert=True)
+        return
+
     title = selected.get("title") or "фильм"
 
-    await state.update_data(selected_content=selected)
-    await callback.message.answer(
+    await state.update_data(
+        selected_content=selected,
+        season=None,
+        episode=None,
+    )
+
+    content_type = selected.get("content_type") or (selected.get("content") or {}).get(
+        "content_type"
+    )
+
+    if content_type == "series":
+        await callback.message.answer(
+            f"📺 Укажите сезон для «{title}» (числом)",
+            reply_markup=types.ReplyKeyboardRemove(),
+        )
+        await state.set_state(SearchState.waiting_for_season)
+    else:
+        await callback.message.answer(
+            f"💬 Оставьте отзыв о фильме «{title}» (или отправьте '-' чтобы пропустить):",
+            reply_markup=types.ReplyKeyboardRemove(),
+        )
+        await state.set_state(SearchState.waiting_for_review)
+
+    await callback.answer()
+
+
+@router.message(SearchState.waiting_for_season)
+async def collect_season(message: types.Message, state: FSMContext):
+    text = (message.text or "").strip()
+    try:
+        season = int(text)
+        if season <= 0:
+            raise ValueError
+    except ValueError:
+        await message.answer("⚠️ Введите номер сезона числом (например, 1)")
+        return
+
+    await state.update_data(season=season)
+    await message.answer(
+        "📺 Укажите серию (числом)", reply_markup=types.ReplyKeyboardRemove()
+    )
+    await state.set_state(SearchState.waiting_for_episode)
+
+
+@router.message(SearchState.waiting_for_episode)
+async def collect_episode(message: types.Message, state: FSMContext):
+    text = (message.text or "").strip()
+    try:
+        episode = int(text)
+        if episode <= 0:
+            raise ValueError
+    except ValueError:
+        await message.answer("⚠️ Введите номер серии числом (например, 1)")
+        return
+
+    await state.update_data(episode=episode)
+
+    data = await state.get_data()
+    selected = data.get("selected_content") or {}
+    title = selected.get("title") or "фильм"
+
+    await message.answer(
         f"💬 Оставьте отзыв о фильме «{title}» (или отправьте '-' чтобы пропустить):",
         reply_markup=types.ReplyKeyboardRemove(),
     )
     await state.set_state(SearchState.waiting_for_review)
-    await callback.answer()
 
 
 @router.message(SearchState.waiting_for_review)
@@ -256,6 +333,8 @@ async def collect_rating(message: types.Message, state: FSMContext):
         rating=rating,
         notes=review,
         watched_at=watched_at,
+        season=data.get("season"),
+        episode=data.get("episode"),
         user_profile={
             "username": message.from_user.username,
             "first_name": message.from_user.first_name,
@@ -325,6 +404,10 @@ async def add_to_watchlist(callback: types.CallbackQuery, state: FSMContext):
         return
 
     selected = results[index]
+    if selected.get("already_watched"):
+        await callback.answer("Фильм уже просмотрен", show_alert=True)
+        return
+
     history_service = HistoryService()
     watchlist_service = WatchlistService()
 

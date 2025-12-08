@@ -7,6 +7,7 @@ from app.keyboards.main_menu import get_main_menu_keyboard
 from app.services.history_service import HistoryService
 from app.states.history_state import HistoryState
 from app.utils.formatters import format_history_record
+from app.utils.message_helpers import send_content_card, update_content_card
 from app.utils.text_templates import get_history_results_message
 
 router = Router()
@@ -41,8 +42,11 @@ async def cmd_history(message: types.Message, state: FSMContext):
 
     text = get_history_results_message(history, 0)
     keyboard = get_history_results_keyboard(history, 0)
+    poster_url = (history[0].get("content") or {}).get("poster_url")
 
-    await message.answer(text, reply_markup=keyboard, parse_mode="HTML")
+    await send_content_card(
+        message, text, keyboard=keyboard, poster_url=poster_url
+    )
 
 
 @router.callback_query(F.data.startswith("history_page_"))
@@ -65,8 +69,11 @@ async def paginate_history(callback: types.CallbackQuery, state: FSMContext):
 
     text = get_history_results_message(history, safe_page)
     keyboard = get_history_results_keyboard(history, safe_page)
+    poster_url = (history[safe_page].get("content") or {}).get("poster_url")
 
-    await callback.message.edit_text(text, reply_markup=keyboard, parse_mode="HTML")
+    await update_content_card(
+        callback.message, text, keyboard=keyboard, poster_url=poster_url
+    )
     await state.update_data(history_page=safe_page)
     await callback.answer()
 
@@ -90,6 +97,9 @@ async def show_history_detail(callback: types.CallbackQuery):
 
     text = format_history_record(record)
     keyboard = get_rating_keyboard(record_id)
-    
-    await callback.message.edit_text(text, reply_markup=keyboard, parse_mode="HTML")
+    poster_url = (record.get("content") or {}).get("poster_url")
+
+    await update_content_card(
+        callback.message, text, keyboard=keyboard, poster_url=poster_url
+    )
     await callback.answer()

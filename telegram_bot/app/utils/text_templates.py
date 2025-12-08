@@ -1,5 +1,15 @@
 from typing import List, Dict, Any
 
+__all__ = [
+    "get_start_message",
+    "get_help_message",
+    "get_history_results_message",
+    "get_watchlist_message",
+    "get_search_results_message",
+    "get_analytics_message",
+    "get_settings_message",
+]
+
 def get_start_message(username: str) -> str:
     """Шаблон приветственного сообщения"""
     return (
