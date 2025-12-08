@@ -9,6 +9,7 @@ from app.keyboards.main_menu import get_main_menu_keyboard
 from app.services.history_service import HistoryService
 from app.services.watchlist_service import WatchlistService
 from app.states.watchlist_state import WatchlistState
+from app.utils.message_helpers import send_content_card, update_content_card
 from app.utils.text_templates import get_watchlist_message
 
 router = Router()
@@ -38,8 +39,11 @@ async def cmd_watchlist(message: types.Message, state: FSMContext):
 
     text = get_watchlist_message(watchlist, 0)
     keyboard = get_watchlist_results_keyboard(watchlist, 0)
+    poster_url = (watchlist[0].get("content") or {}).get("poster_url")
 
-    await message.answer(text, reply_markup=keyboard, parse_mode="HTML")
+    await send_content_card(
+        message, text, keyboard=keyboard, poster_url=poster_url
+    )
     await state.set_state(WatchlistState.viewing)
 
 
@@ -60,8 +64,11 @@ async def change_watchlist_page(callback: types.CallbackQuery, state: FSMContext
     safe_page = max(0, min(page, len(results) - 1))
     text = get_watchlist_message(results, safe_page)
     keyboard = get_watchlist_results_keyboard(results, safe_page)
+    poster_url = (results[safe_page].get("content") or {}).get("poster_url")
 
-    await callback.message.edit_text(text, reply_markup=keyboard, parse_mode="HTML")
+    await update_content_card(
+        callback.message, text, keyboard=keyboard, poster_url=poster_url
+    )
     await state.update_data(watchlist_page=safe_page)
     await callback.answer()
 

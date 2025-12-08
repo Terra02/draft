@@ -11,6 +11,7 @@ from app.keyboards.search_keyboards import get_search_results_keyboard
 from app.services.history_service import HistoryService
 from app.services.watchlist_service import WatchlistService
 from app.states.search_state import SearchState
+from app.utils.message_helpers import send_content_card, update_content_card
 from app.utils.text_templates import get_search_results_message
 
 router = Router()
@@ -103,7 +104,17 @@ async def process_search_query(message: types.Message, state: FSMContext):
         text = get_search_results_message(results, 0)
         keyboard = get_search_results_keyboard(results, 0)
 
-        await search_message.edit_text(text, reply_markup=keyboard, parse_mode="HTML")
+        try:
+            await search_message.delete()
+        except Exception:
+            pass
+
+        await send_content_card(
+            message,
+            text,
+            keyboard=keyboard,
+            poster_url=results[0].get("poster_url"),
+        )
         await state.set_state(SearchState.waiting_for_selection)
         logger.info(f"✅ Поиск завершен, найдено {len(results)} результатов")
 
@@ -130,7 +141,10 @@ async def change_search_page(callback: types.CallbackQuery, state: FSMContext):
     text = get_search_results_message(results, current_page)
     keyboard = get_search_results_keyboard(results, current_page)
 
-    await callback.message.edit_text(text, reply_markup=keyboard, parse_mode="HTML")
+    poster_url = results[current_page].get("poster_url")
+    await update_content_card(
+        callback.message, text, keyboard=keyboard, poster_url=poster_url
+    )
     await state.update_data(current_page=current_page)
     await callback.answer()
 
