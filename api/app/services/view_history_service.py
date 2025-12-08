@@ -66,7 +66,10 @@ class ViewHistoryService:
         result = await self.db.execute(
             select(ViewHistory)
             .where(ViewHistory.user_id == user_id)
-            .order_by(desc(ViewHistory.watched_at))
+            .order_by(
+                desc(ViewHistory.watched_at),
+                desc(ViewHistory.created_at)
+            )
             .offset(skip)
             .limit(limit)
         )
@@ -83,7 +86,10 @@ class ViewHistoryService:
             select(ViewHistory, Content)
             .join(Content, ViewHistory.content_id == Content.id)
             .where(ViewHistory.user_id == user_id)
-            .order_by(desc(ViewHistory.watched_at))
+            .order_by(
+                desc(ViewHistory.watched_at),
+                desc(ViewHistory.created_at)
+            )
             .offset(skip)
             .limit(limit)
         )
