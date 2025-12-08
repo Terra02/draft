@@ -5,14 +5,13 @@ class UserService:
     def __init__(self):
         self.api_client = api_client
 
-    async def get_or_create_user(self, telegram_id: int, username: Optional[str] = None, 
+    async def get_or_create_user(self, telegram_id: int, username: Optional[str] = None,
                                first_name: Optional[str] = None, last_name: Optional[str] = None):
         # Сначала пытаемся найти пользователя по telegram_id
         user_data = await self.api_client.get(f"/api/v1/users/telegram/{telegram_id}")
-        
-        if user_data:
+        if isinstance(user_data, dict) and user_data.get("id"):
             return user_data
-        
+
         # Если пользователь не найден, создаем нового
         new_user = {
             "telegram_id": telegram_id,
@@ -20,8 +19,13 @@ class UserService:
             "first_name": first_name,
             "last_name": last_name
         }
-        
-        return await self.api_client.post("/api/v1/users/", data=new_user)
+
+        created = await self.api_client.post("/api/v1/users/", data=new_user)
+
+        if isinstance(created, dict) and created.get("id"):
+            return created
+
+        return None
 
     async def get_user(self, user_id: int):
         return await self.api_client.get(f"/api/v1/users/{user_id}")

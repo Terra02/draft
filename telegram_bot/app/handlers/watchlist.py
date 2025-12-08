@@ -1,19 +1,26 @@
+from datetime import datetime, timedelta
+
 from aiogram import Router, types, F
-from aiogram.filters import Command, StateFilter
+from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 
-from app.keyboards.watchlist_keyboards import get_watchlist_keyboard
+from app.keyboards.watchlist_keyboards import get_watchlist_results_keyboard
 from app.keyboards.main_menu import get_main_menu_keyboard
+from app.services.history_service import HistoryService
 from app.services.watchlist_service import WatchlistService
+from app.states.watchlist_state import WatchlistState
+from app.utils.message_helpers import send_content_card, update_content_card
 from app.utils.text_templates import get_watchlist_message
 
 router = Router()
 
+
 @router.message(Command("watchlist"))
 @router.message(F.text == "📋 Список желаемого")
 async def cmd_watchlist(message: types.Message, state: FSMContext):
-    """Показать список желаемого"""
+    """Показать список желаемого с пагинацией"""
     await state.clear()
+
 
     watchlist_service = WatchlistService()
     watchlist = await watchlist_service.get_user_watchlist(
@@ -24,26 +31,286 @@ async def cmd_watchlist(message: types.Message, state: FSMContext):
         await message.answer(
             "📝 Ваш список желаемого пуст.\n"
             "Добавьте первый фильм или сериал, который хотите посмотреть!",
-            reply_markup=get_main_menu_keyboard()
+            reply_markup=get_main_menu_keyboard(),
         )
         return
 
-    text = get_watchlist_message(watchlist)
-    keyboard = get_watchlist_keyboard(watchlist)
+    await state.update_data(watchlist_results=watchlist, watchlist_page=0)
 
-    await message.answer(text, reply_markup=keyboard, parse_mode="HTML")
+    text = get_watchlist_message(watchlist, 0)
+    keyboard = get_watchlist_results_keyboard(watchlist, 0)
+    poster_url = (watchlist[0].get("content") or {}).get("poster_url")
 
-@router.callback_query(F.data.startswith("watchlist_remove_"))
-async def remove_from_watchlist(callback: types.CallbackQuery):
-    """Удалить из списка желаемого"""
-    item_id = int(callback.data.split("_")[2])
-    
+    await send_content_card(
+        message, text, keyboard=keyboard, poster_url=poster_url
+    )
+    await state.set_state(WatchlistState.viewing)
+
+
+@router.callback_query(WatchlistState.viewing, F.data.startswith("watchlist_page_"))
+async def change_watchlist_page(callback: types.CallbackQuery, state: FSMContext):
+    data = await state.get_data()
+    results = data.get("watchlist_results", [])
+    if not results:
+        await callback.answer("Список пуст", show_alert=True)
+        return
+
+    try:
+        page = int(callback.data.split("_")[2])
+    except (ValueError, IndexError):
+        await callback.answer("Некорректная страница", show_alert=True)
+        return
+
+    safe_page = max(0, min(page, len(results) - 1))
+    text = get_watchlist_message(results, safe_page)
+    keyboard = get_watchlist_results_keyboard(results, safe_page)
+    poster_url = (results[safe_page].get("content") or {}).get("poster_url")
+
+    await update_content_card(
+        callback.message, text, keyboard=keyboard, poster_url=poster_url
+    )
+    await state.update_data(watchlist_page=safe_page)
+    await callback.answer()
+
+
+@router.callback_query(WatchlistState.viewing, F.data == "watchlist_clear")
+async def clear_watchlist(callback: types.CallbackQuery, state: FSMContext):
     watchlist_service = WatchlistService()
-    success = await watchlist_service.remove_from_watchlist(item_id)
-    
-    if success:
-        await callback.answer("Удалено из списка желаемого")
-        # Обновляем сообщение
-        await cmd_watchlist(callback.message, callback.message.bot)
+    cleared = await watchlist_service.clear_watchlist(callback.from_user.id)
+
+    if cleared:
+        await state.clear()
+        try:
+            await callback.message.delete()
+        except Exception:
+            # Если сообщение удалить не удалось (например, уже удалено), продолжаем
+            pass
+
+        await callback.message.answer(
+            "🗑️ Список желаемого очищен.", reply_markup=get_main_menu_keyboard()
+        )
+        await callback.answer()
+        return
+
+    await callback.answer("Не удалось очистить", show_alert=True)
+
+
+@router.callback_query(WatchlistState.viewing, F.data.startswith("watchlist_add_"))
+async def start_add_from_watchlist(callback: types.CallbackQuery, state: FSMContext):
+    data = await state.get_data()
+    results = data.get("watchlist_results", [])
+    if not results:
+        await callback.answer("Список пуст", show_alert=True)
+        return
+
+    try:
+        page = int(callback.data.split("_")[2])
+    except (ValueError, IndexError):
+        await callback.answer("Некорректный выбор", show_alert=True)
+        return
+
+    if page < 0 or page >= len(results):
+        await callback.answer("Элемент вне диапазона", show_alert=True)
+        return
+
+    selected = results[page]
+    await state.update_data(
+        selected_watchlist_item=selected,
+        season=None,
+        episode=None,
+    )
+
+    content = selected.get("content") or {}
+    content_type = content.get("content_type") or selected.get("content_type")
+    title = content.get("title") or selected.get("content_title") or "фильм"
+
+    if content_type == "series":
+        await callback.message.answer(
+            f"📺 Укажите сезон для «{title}» (числом)",
+            reply_markup=types.ReplyKeyboardRemove(),
+        )
+        await state.set_state(WatchlistState.waiting_for_season)
     else:
-        await callback.answer("Ошибка при удалении")
+        await callback.message.answer(
+            f"💬 Оставьте отзыв о фильме «{title}» (или отправьте '-' чтобы пропустить):",
+            reply_markup=types.ReplyKeyboardRemove(),
+        )
+        await state.set_state(WatchlistState.waiting_for_review)
+    await callback.answer()
+
+
+@router.message(WatchlistState.waiting_for_season)
+async def watchlist_season(message: types.Message, state: FSMContext):
+    text = (message.text or "").strip()
+    try:
+        season = int(text)
+        if season <= 0:
+            raise ValueError
+    except ValueError:
+        await message.answer("⚠️ Введите номер сезона числом (например, 1)")
+        return
+
+    await state.update_data(season=season)
+    await message.answer("📺 Укажите серию (числом)", reply_markup=types.ReplyKeyboardRemove())
+    await state.set_state(WatchlistState.waiting_for_episode)
+
+
+@router.message(WatchlistState.waiting_for_episode)
+async def watchlist_episode(message: types.Message, state: FSMContext):
+    text = (message.text or "").strip()
+    try:
+        episode = int(text)
+        if episode <= 0:
+            raise ValueError
+    except ValueError:
+        await message.answer("⚠️ Введите номер серии числом (например, 1)")
+        return
+
+    await state.update_data(episode=episode)
+    data = await state.get_data()
+    selected = data.get("selected_watchlist_item") or {}
+    title = (selected.get("content") or {}).get("title") or selected.get("content_title") or "фильм"
+
+    await message.answer(
+        f"💬 Оставьте отзыв о фильме «{title}» (или отправьте '-' чтобы пропустить):",
+        reply_markup=types.ReplyKeyboardRemove(),
+    )
+    await state.set_state(WatchlistState.waiting_for_review)
+
+
+@router.message(WatchlistState.waiting_for_review)
+async def watchlist_review(message: types.Message, state: FSMContext):
+    review = message.text.strip()
+    if review == "-":
+        review = None
+
+    await state.update_data(review=review)
+    await message.answer(
+        "📅 Укажите дату просмотра (в формате ДД.ММ.ГГГГ, 'сегодня' или 'вчера'):",
+        reply_markup=types.ReplyKeyboardRemove(),
+    )
+    await state.set_state(WatchlistState.waiting_for_watched_at)
+
+
+@router.message(WatchlistState.waiting_for_watched_at)
+async def watchlist_watched_date(message: types.Message, state: FSMContext):
+    text = message.text.strip().lower()
+    today = datetime.now()
+
+    try:
+        if text in {"сегодня", "today"}:
+            watched_at = today
+        elif text in {"вчера", "yesterday"}:
+            watched_at = today - timedelta(days=1)
+        else:
+            watched_at = datetime.strptime(text, "%d.%m.%Y")
+    except ValueError:
+        await message.answer(
+            "⚠️ Не удалось распознать дату. Введите в формате ДД.ММ.ГГГГ или напишите 'сегодня'."
+        )
+        return
+
+    await state.update_data(watched_at=watched_at)
+    await message.answer("⭐️ Ваша оценка от 1 до 10:", reply_markup=types.ReplyKeyboardRemove())
+    await state.set_state(WatchlistState.waiting_for_rating)
+
+
+@router.message(WatchlistState.waiting_for_rating)
+async def watchlist_rating(message: types.Message, state: FSMContext):
+    try:
+        rating = float(message.text.strip().replace(",", "."))
+        if rating < 1 or rating > 10:
+            raise ValueError
+    except ValueError:
+        await message.answer("⚠️ Введите число от 1 до 10, например 8.5")
+        return
+
+    data = await state.get_data()
+    selected = data.get("selected_watchlist_item") or {}
+    watched_at = data.get("watched_at")
+    review = data.get("review")
+
+    content = (selected.get("content") or {})
+    content_id = content.get("id")
+    watchlist_id = selected.get("id")
+
+    history_service = HistoryService()
+    watchlist_service = WatchlistService()
+
+    # Всегда убеждаемся, что контент существует и можем получить его ID
+    ensured = await history_service.ensure_content_exists(content)
+    if ensured:
+        content = ensured
+        content_id = content.get("id")
+
+    if not content_id or not watchlist_id:
+        await message.answer(
+            "❌ Не удалось определить фильм. Попробуйте снова через список желаемого.",
+            reply_markup=get_main_menu_keyboard(),
+        )
+        await state.clear()
+        return
+
+    saved = await history_service.add_view_history(
+        telegram_id=message.from_user.id,
+        content_id=content_id,
+        rating=rating,
+        notes=review,
+        watched_at=watched_at,
+        season=data.get("season"),
+        episode=data.get("episode"),
+        user_profile={
+            "username": message.from_user.username,
+            "first_name": message.from_user.first_name,
+            "last_name": message.from_user.last_name,
+        },
+    )
+
+    if (not saved or not saved.get("id")) and selected:
+        refreshed_content = await history_service.ensure_content_exists(
+            content or selected
+        )
+
+        if refreshed_content and refreshed_content.get("id"):
+            content = refreshed_content
+            content_id = content.get("id")
+            saved = await history_service.add_view_history(
+                telegram_id=message.from_user.id,
+                content_id=content_id,
+                rating=rating,
+                notes=review,
+                watched_at=watched_at,
+                season=data.get("season"),
+                episode=data.get("episode"),
+                user_profile={
+                    "username": message.from_user.username,
+                    "first_name": message.from_user.first_name,
+                    "last_name": message.from_user.last_name,
+                },
+            )
+
+    title = content.get("title") or "Фильм"
+
+    if saved and saved.get("id"):
+        await watchlist_service.remove_from_watchlist(watchlist_id)
+        await message.answer(
+            f"✅ {title} добавлен в историю!\n"
+            f"⭐️ Ваша оценка: {rating}/10\n"
+            f"🗓 Дата: {watched_at.strftime('%d.%m.%Y') if isinstance(watched_at, datetime) else 'не указана'}"
+            + (f"\n💬 Отзыв: {review}" if review else "")
+            + "\n\nФильм удален из списка желаемого.",
+            reply_markup=get_main_menu_keyboard(),
+        )
+    else:
+        error_detail = ""
+        if isinstance(saved, dict):
+            detail = saved.get("detail")
+            if isinstance(detail, str):
+                error_detail = f"\n{detail}"
+
+        await message.answer(
+            "❌ Не удалось сохранить просмотр. Попробуйте позже." + error_detail,
+            reply_markup=get_main_menu_keyboard(),
+        )
+
+    await state.clear()

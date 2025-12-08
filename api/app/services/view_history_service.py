@@ -66,7 +66,10 @@ class ViewHistoryService:
         result = await self.db.execute(
             select(ViewHistory)
             .where(ViewHistory.user_id == user_id)
-            .order_by(desc(ViewHistory.watched_at))
+            .order_by(
+                desc(ViewHistory.watched_at),
+                desc(ViewHistory.created_at)
+            )
             .offset(skip)
             .limit(limit)
         )
@@ -83,21 +86,32 @@ class ViewHistoryService:
             select(ViewHistory, Content)
             .join(Content, ViewHistory.content_id == Content.id)
             .where(ViewHistory.user_id == user_id)
-            .order_by(desc(ViewHistory.watched_at))
+            .order_by(
+                desc(ViewHistory.watched_at),
+                desc(ViewHistory.created_at)
+            )
             .offset(skip)
             .limit(limit)
         )
-        
+
         history_with_content = []
         for history, content in result:
+            content_dict = {
+                column.key: getattr(content, column.key)
+                for column in Content.__table__.columns
+            }
+
             history_dict = {
-                **history.__dict__,
+                **{column.key: getattr(history, column.key) for column in ViewHistory.__table__.columns},
+                "id": history.id,
+                "created_at": history.created_at,
+                "updated_at": history.updated_at,
                 "content_title": content.title,
                 "content_type": content.content_type,
-                "content": content.__dict__
+                "content": content_dict,
             }
             history_with_content.append(history_dict)
-        
+
         return history_with_content
 
     async def get_user_stats(self, user_id: int) -> Dict[str, Any]:
