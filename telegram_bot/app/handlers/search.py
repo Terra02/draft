@@ -52,7 +52,7 @@ async def process_search_query(message: types.Message, state: FSMContext):
             source = raw_result.get("source")
 
             # Стандартная схема API для бота
-            if source in {"database", "omdb"}:
+            if source in {"database", "omdb", "mixed"}:
                 data = raw_result.get("data")
                 if isinstance(data, list):
                     results = data
@@ -156,6 +156,10 @@ async def start_add_to_history(callback: types.CallbackQuery, state: FSMContext)
         return
 
     selected = results[index]
+    if selected.get("already_watched"):
+        await callback.answer("Фильм уже просмотрен", show_alert=True)
+        return
+
     title = selected.get("title") or "фильм"
 
     await state.update_data(selected_content=selected)
@@ -325,6 +329,10 @@ async def add_to_watchlist(callback: types.CallbackQuery, state: FSMContext):
         return
 
     selected = results[index]
+    if selected.get("already_watched"):
+        await callback.answer("Фильм уже просмотрен", show_alert=True)
+        return
+
     history_service = HistoryService()
     watchlist_service = WatchlistService()
 

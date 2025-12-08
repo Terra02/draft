@@ -96,30 +96,6 @@ class OMDBService:
         except Exception as e:
             logger.error(f"💥 Ошибка при получении деталей OMDB {imdb_id}: {e}")
             return None
-    
-    async def _fetch_details(self, client: httpx.AsyncClient, imdb_id: str) -> Optional[Dict[str, Any]]:
-        """Получить детальную информацию по imdbID"""
-        try:
-            params = {
-                "apikey": self.api_key,
-                "i": imdb_id,
-                "plot": "short"
-            }
-            detail_resp = await client.get(self.base_url, params=params)
-            if detail_resp.status_code != 200:
-                logger.error(f"❌ OMDB detail error for {imdb_id}: {detail_resp.status_code}")
-                return None
-
-            detail_data = detail_resp.json()
-            if detail_data.get("Response") != "True":
-                logger.warning(f"❌ Не удалось получить детали для {imdb_id}: {detail_data.get('Error')}")
-                return None
-
-            logger.info(f"✅ Детали OMDB: {detail_data.get('Title')}")
-            return self._parse_response(detail_data)
-        except Exception as e:
-            logger.error(f"💥 Ошибка при получении деталей OMDB {imdb_id}: {e}")
-            return None
         
     def _parse_response(self, data: Dict[str, Any]) -> Dict[str, Any]:
         """Парсинг ответа OMDB"""
