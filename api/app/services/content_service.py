@@ -87,6 +87,9 @@ class ContentService:
             if db_item and db_item.get("imdb_id"):
                 seen_imdb_ids.add(db_item["imdb_id"])
 
+            # Берем столько результатов, чтобы всего карточек было до пяти
+            max_omdb_items = 5 - (1 if db_item else 0)
+
             for item in worker_result:
                 imdb_id = item.get("imdb_id")
                 if imdb_id and imdb_id in seen_imdb_ids:
@@ -95,7 +98,7 @@ class ContentService:
                     seen_imdb_ids.add(imdb_id)
                 omdb_items.append({**item, "source": "omdb", "already_watched": False})
 
-                if len(omdb_items) >= 4:
+                if len(omdb_items) >= max_omdb_items:
                     break
 
             # 3. Составляем итоговый список (до 5 элементов)
