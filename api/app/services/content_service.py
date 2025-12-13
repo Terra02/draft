@@ -75,7 +75,10 @@ class ContentService:
                 db_item = {
                     **self._content_to_dict(content),
                     "source": "database",
-                    "already_watched": True,
+                    # Не помечаем как уже просмотренный, чтобы бот не блокировал добавление
+                    # в историю, если фильм лишь найден в нашей базе (например, после
+                    # добавления в watchlist без отметки просмотра).
+                    "already_watched": False,
                 }
 
             # 2. Ищем через Worker (получаем список до 5 элементов)
