@@ -76,10 +76,16 @@ async def update_content_card(
                 except Exception:
                     pass
 
-    # Фолбэк: текстовое обновление или новое сообщение, если редактирование невозможно
+    # Фолбэк: обновление текста/описания без пересоздания сообщения
+    if message.content_type == "photo":
+        try:
+            await message.edit_caption(text, reply_markup=keyboard, parse_mode=parse_mode)
+            return message
+        except Exception:
+            return message
+
     try:
         await message.edit_text(text, reply_markup=keyboard, parse_mode=parse_mode)
-        return message
     except Exception:
         # Вариант без постера для сообщений с фото: обновляем подпись вместо отправки нового
         try:

@@ -103,6 +103,8 @@ class HistoryService:
         rating: Optional[float] = None,
         notes: Optional[str] = None,
         watched_at: Optional[datetime] = None,
+        season: Optional[int] = None,
+        episode: Optional[int] = None,
         user_profile: Optional[Dict[str, Any]] = None,
     ) -> Optional[Dict[str, Any]]:
         """Добавить запись в историю просмотров"""
@@ -123,6 +125,8 @@ class HistoryService:
             "rating": rating,
             "notes": notes,
             "watched_at": watched_at.isoformat() if isinstance(watched_at, datetime) else watched_at,
+            "season": season,
+            "episode": episode,
         }
 
         created = await self.api_client.post("/api/v1/view-history/", data=history_data)
