@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 
 from aiogram import Router, types, F
 from aiogram.filters import Command
@@ -186,7 +186,7 @@ async def watchlist_review(message: types.Message, state: FSMContext):
 
     await state.update_data(review=review)
     await message.answer(
-        "📅 Укажите дату просмотра (в формате ДД.ММ.ГГГГ, 'сегодня' или 'вчера'):",
+        "📅 Укажите дату просмотра (в формате ДД.ММ.ГГГГ):",
         reply_markup=types.ReplyKeyboardRemove(),
     )
     await state.set_state(WatchlistState.waiting_for_watched_at)
@@ -196,6 +196,7 @@ async def watchlist_review(message: types.Message, state: FSMContext):
 async def watchlist_watched_date(message: types.Message, state: FSMContext):
     text = message.text.strip().lower()
     today = datetime.now()
+    max_allowed_date = date(2024, 12, 31)
 
     try:
         if text in {"сегодня", "today"}:
@@ -208,6 +209,15 @@ async def watchlist_watched_date(message: types.Message, state: FSMContext):
         await message.answer(
             "⚠️ Не удалось распознать дату. Введите в формате ДД.ММ.ГГГГ или напишите 'сегодня'."
         )
+        return
+
+    if watched_at.year < 2020:
+        await message.answer("⚠️ Год просмотра должен быть не раньше 1925.")
+        return
+
+
+    if watched_at.date() > today.date():
+        await message.answer("⚠️ Дата просмотра не может быть в будущем.")
         return
 
     await state.update_data(watched_at=watched_at)

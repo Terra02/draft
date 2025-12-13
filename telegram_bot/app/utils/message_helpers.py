@@ -87,6 +87,11 @@ async def update_content_card(
     try:
         await message.edit_text(text, reply_markup=keyboard, parse_mode=parse_mode)
     except Exception:
-        return message
-
-    return message
+        # Вариант без постера для сообщений с фото: обновляем подпись вместо отправки нового
+        try:
+            await message.edit_caption(
+                text, reply_markup=keyboard, parse_mode=parse_mode
+            )
+            return message
+        except Exception:
+            return message
