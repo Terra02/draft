@@ -5,15 +5,14 @@ import httpx
 import asyncio
 
 st.set_page_config(
-    page_title="Главная панель - Movie Tracker",
+    page_title="Главная панель",
     page_icon="🏠",
     layout="wide"
 )
 
-st.title("🏠 Главная панель управления")
+st.title("Главная панель управления")
 
 async def get_quick_stats():
-    """Получить быструю статистику"""
     try:
         async with httpx.AsyncClient() as client:
             response = await client.get("http://api:8000/api/v1/analytics/system/overview")
@@ -34,8 +33,6 @@ async def main():
             st.metric("🎬 Контент", stats.get('total_content', 0))
         with col3:
             st.metric("📊 Просмотры", stats.get('total_views', 0))
-        with col4:
-            st.metric("🔥 Активные", stats.get('active_users', 0))
     else:
         st.error("Не удалось загрузить данные")
 
