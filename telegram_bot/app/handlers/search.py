@@ -305,9 +305,26 @@ async def collect_rating(message: types.Message, state: FSMContext):
 @router.callback_query(F.data == "new_search")
 async def new_search(callback: types.CallbackQuery, state: FSMContext):
     """Новый поиск"""
-    await state.set_state(SearchState.waiting_for_query)
-    await callback.message.edit_text("🔍 Введите название фильма или сериала для поиска:")
     await callback.answer()
+    await state.clear()
+    await state.set_state(SearchState.waiting_for_query)
+
+    prompt = "🔍 Введите название фильма или сериала для поиска:"
+
+    # Пробуем удалить карточку, чтобы избежать "немой" записи без текста
+    try:
+        await callback.message.delete()
+    except Exception:
+        try:
+            await callback.message.edit_reply_markup(reply_markup=None)
+        except Exception:
+            pass
+
+    # Отправляем новое приглашение к поиску отдельным сообщением
+    await callback.message.answer(
+        prompt,
+        reply_markup=types.ReplyKeyboardRemove(),
+    )
 
 
 
