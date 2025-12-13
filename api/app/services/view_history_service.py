@@ -1,5 +1,6 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, desc, and_
+from sqlalchemy.exc import IntegrityError
 from typing import Optional, List, Dict, Any
 from datetime import datetime, timedelta
 import logging
@@ -25,10 +26,46 @@ class ViewHistoryService:
         """Создать новую запись в истории просмотров"""
         history = ViewHistory(**history_data.model_dump())
         self.db.add(history)
-        await self.db.commit()
-        await self.db.refresh(history)
-        logger.info(f"Created view history record for user {history_data.user_id}")
-        return history
+        try:
+            await self.db.commit()
+            await self.db.refresh(history)
+            logger.info(f"Created view history record for user {history_data.user_id}")
+            return history
+        except IntegrityError as exc:
+            await self.db.rollback()
+
+            # Если запись с такими user_id/content_id/watched_at уже существует,
+            # обновляем её перед возвратом, чтобы не падать на уникальном индексе.
+            if "unique_view_record" in str(getattr(exc, "orig", exc)).lower():
+                existing_stmt = select(ViewHistory).where(
+                    and_(
+                        ViewHistory.user_id == history_data.user_id,
+                        ViewHistory.content_id == history_data.content_id,
+                        ViewHistory.watched_at == history_data.watched_at,
+                    )
+                )
+                existing_result = await self.db.execute(existing_stmt)
+                existing = existing_result.scalar_one_or_none()
+
+                if existing:
+                    update_data = history_data.model_dump(
+                        exclude_none=True,
+                        exclude={"user_id", "content_id"},
+                    )
+
+                    for field, value in update_data.items():
+                        setattr(existing, field, value)
+
+                    await self.db.commit()
+                    await self.db.refresh(existing)
+                    logger.info(
+                        "Updated existing view history record for user %s and content %s",
+                        history_data.user_id,
+                        history_data.content_id,
+                    )
+                    return existing
+
+            raise
 
     async def update_view_history(self, history_id: int, history_data: ViewHistoryUpdate) -> Optional[ViewHistory]:
         """Обновить запись истории просмотра"""

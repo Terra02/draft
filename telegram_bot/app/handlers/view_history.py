@@ -29,6 +29,13 @@ async def cmd_history(message: types.Message, state: FSMContext):
         },
     )
 
+    if not isinstance(history, list):
+        await message.answer(
+            "⚠️ Не удалось загрузить историю. Попробуйте позже или повторите запрос.",
+            reply_markup=get_main_menu_keyboard(),
+        )
+        return
+
     if not history:
         await message.answer(
             "📝 Ваша история просмотров пуста.\n"
@@ -54,6 +61,10 @@ async def paginate_history(callback: types.CallbackQuery, state: FSMContext):
     """Переключение между элементами истории"""
     data = await state.get_data()
     history = data.get("history_records", [])
+
+    if not isinstance(history, list):
+        await callback.answer("История недоступна", show_alert=True)
+        return
 
     if not history:
         await callback.answer("История недоступна", show_alert=True)
