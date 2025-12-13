@@ -306,7 +306,22 @@ async def collect_rating(message: types.Message, state: FSMContext):
 async def new_search(callback: types.CallbackQuery, state: FSMContext):
     """Новый поиск"""
     await state.set_state(SearchState.waiting_for_query)
-    await callback.message.edit_text("🔍 Введите название фильма или сериала для поиска:")
+    try:
+        if callback.message.content_type == "photo":
+            await callback.message.edit_caption(
+                "🔍 Введите название фильма или сериала для поиска:",
+                reply_markup=None,
+            )
+        else:
+            await callback.message.edit_text(
+                "🔍 Введите название фильма или сериала для поиска:",
+                reply_markup=None,
+            )
+    except Exception:
+        await callback.message.answer(
+            "🔍 Введите название фильма или сериала для поиска:",
+            reply_markup=types.ReplyKeyboardRemove(),
+        )
     await callback.answer()
 
 
