@@ -10,9 +10,9 @@ def _validate_watched_at(value: Optional[datetime]) -> Optional[datetime]:
     if value is None:
         return value
 
-    max_allowed_date = date(2024, 12, 31)
-    if value.date() > max_allowed_date:
-        raise ValueError("Дата просмотра не может быть позже 31.12.2024.")
+    min_allowed_date = date(2020, 12, 31)
+    if value.date() < min_allowed_date:
+        raise ValueError("Дата просмотра не может быть раньше 31.12.2020.")
 
     now = datetime.now(tz=value.tzinfo) if value.tzinfo else datetime.now()
     if value > now:
@@ -39,6 +39,7 @@ class ViewHistoryCreate(ViewHistoryBase):
     @classmethod
     def validate_watched_at(cls, value: Optional[datetime]) -> Optional[datetime]:
         return _validate_watched_at(value)
+
 
 
 class ViewHistoryUpdate(BaseModel):

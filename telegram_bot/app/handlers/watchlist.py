@@ -133,7 +133,7 @@ async def watchlist_review(message: types.Message, state: FSMContext):
 
     await state.update_data(review=review)
     await message.answer(
-        "📅 Укажите дату просмотра (в формате ДД.ММ.ГГГГ, 'сегодня' или 'вчера'):",
+        "📅 Укажите дату просмотра (в формате ДД.ММ.ГГГГ):",
         reply_markup=types.ReplyKeyboardRemove(),
     )
     await state.set_state(WatchlistState.waiting_for_watched_at)
@@ -158,13 +158,10 @@ async def watchlist_watched_date(message: types.Message, state: FSMContext):
         )
         return
 
-    if watched_at.year < 1925:
+    if watched_at.year < 2020:
         await message.answer("⚠️ Год просмотра должен быть не раньше 1925.")
         return
 
-    if watched_at.date() > max_allowed_date:
-        await message.answer("⚠️ Дата просмотра не может быть позже 31.12.2024.")
-        return
 
     if watched_at.date() > today.date():
         await message.answer("⚠️ Дата просмотра не может быть в будущем.")
