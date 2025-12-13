@@ -311,20 +311,20 @@ async def new_search(callback: types.CallbackQuery, state: FSMContext):
 
     prompt = "🔍 Введите название фильма или сериала для поиска:"
 
+    # Пробуем удалить карточку, чтобы избежать "немой" записи без текста
     try:
-        if callback.message.content_type == "photo":
-            await callback.message.edit_caption(prompt, reply_markup=None)
-        else:
-            await callback.message.edit_text(prompt, reply_markup=None)
+        await callback.message.delete()
     except Exception:
         try:
             await callback.message.edit_reply_markup(reply_markup=None)
         except Exception:
             pass
-        await callback.message.answer(
-            prompt,
-            reply_markup=types.ReplyKeyboardRemove(),
-        )
+
+    # Отправляем новое приглашение к поиску отдельным сообщением
+    await callback.message.answer(
+        prompt,
+        reply_markup=types.ReplyKeyboardRemove(),
+    )
 
 
 
