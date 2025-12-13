@@ -33,14 +33,13 @@ class ViewHistoryBase(BaseModel):
     rewatch: bool = False
     notes: Optional[str] = None
 
+
+class ViewHistoryCreate(ViewHistoryBase):
     @field_validator("watched_at")
     @classmethod
     def validate_watched_at(cls, value: Optional[datetime]) -> Optional[datetime]:
         return _validate_watched_at(value)
 
-
-class ViewHistoryCreate(ViewHistoryBase):
-    pass
 
 
 class ViewHistoryUpdate(BaseModel):

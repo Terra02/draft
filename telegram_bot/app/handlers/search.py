@@ -206,6 +206,8 @@ async def collect_watched_date(message: types.Message, state: FSMContext):
     text = message.text.strip().lower()
     today = datetime.now()
 
+    max_allowed_date = date(2024, 12, 31)
+
     try:
         if text in {"сегодня", "today"}:
             watched_at = today
