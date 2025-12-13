@@ -1,6 +1,6 @@
 # telegram_bot/app/handlers/search.py
 import logging
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 
 from aiogram import F, Router, types
 from aiogram.filters import Command
@@ -206,6 +206,8 @@ async def collect_watched_date(message: types.Message, state: FSMContext):
     text = message.text.strip().lower()
     today = datetime.now()
 
+    max_allowed_date = date(2024, 12, 31)
+
     try:
         if text in {"сегодня", "today"}:
             watched_at = today
@@ -219,10 +221,12 @@ async def collect_watched_date(message: types.Message, state: FSMContext):
         )
         return
 
-    if watched_at.year < 1925 or watched_at.year > today.year:
-        await message.answer(
-            "⚠️ Год просмотра должен быть не раньше 1925 и не позже текущего."
-        )
+    if watched_at.year < 1925:
+        await message.answer("⚠️ Год просмотра должен быть не раньше 1925.")
+        return
+
+    if watched_at.date() > max_allowed_date:
+        await message.answer("⚠️ Дата просмотра не может быть позже 31.12.2024.")
         return
 
     if watched_at.date() > today.date():
